@@ -1,0 +1,45 @@
+name : CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+
+jobs:
+    test:
+        name: Format, Vet, Test, Build
+        runs-on: ubuntu-24.04-arm
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Set up Go
+              uses: actions/setup-go@v7
+              with:
+                go-version: '1.27.1'
+                cache: false
+
+            - name: Check formatting
+              shell: bash
+              run: |
+                unformatted="$(gofmt -l .)"
+
+                if [[ -n "$unformatted" ]]; then
+                echo "다음 파일에 gofmt가 필요합니다:"
+                echo "$unformatted"
+                exit 1
+                fi
+            - name: Vet
+              run : go vet ./...
+
+            - name: Test
+              run: go test ./...
+
+            - name: Build
+              run: go build -trimpath -o /tmp/discord-bot ./cmd/bot

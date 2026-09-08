@@ -1,0 +1,64 @@
+name : Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+    contents: read
+
+
+
+jobs:
+    build-and-push:
+      name: Build and push image
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+      runs-on: ubuntu-24.04-arm
+
+      env:
+        IMAGE_URI: ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_IMAGE }}
+        IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+      steps:
+        - name: Checkout tested commit
+          uses: actions/checkout@v7
+          with:
+            ref: ${{ github.event.workflow_run.head_sha }}
+
+        - name: Login to OCIR
+          uses: docker/login-action@v4
+          with:
+            registry: ${{ vars.OCIR_REGISTRY }}
+            username: ${{ vars.OCIR_USERNAME }}
+            password: ${{ secrets.OCI_AUTH_TOKEN }}
+
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v4
+
+        - name: Build and push image
+          uses: docker/build-push-action@v7
+          with:
+            context: .
+            file: ./Dockerfile
+            platforms: linux/arm64
+            push: true
+            tags: |
+              ${{ env.IMAGE_URI }}:${{ env.IMAGE_TAG }}
+              ${{ env.IMAGE_URI }}:latest
+            labels: |
+              org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+              org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            cache-from: type=gha
+            cache-to: type=gha,mode=max
+
+        - name: Update GitOps image tag
+          uses: wafflestudio/waffle-world-oci/.github/actions/update-image@main
+          with:
+            image: ${{ env.IMAGE_URI }}
+            tag: ${{ env.IMAGE_TAG }}
+            overlay-path: argocd/discord-bot
+            private-key: ${{ secrets.DEPLOYER_APP_PRIVATE_KEY }}
+
+ 
