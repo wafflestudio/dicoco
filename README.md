@@ -9,16 +9,6 @@
 
 Discord Developer Portal에서 봇의 **Message Content Intent**를 활성화해야 합니다.
 
-## Development
-
-Go 파일은 커밋할 때 자동으로 `gofmt`를 적용하도록 Git 훅을 제공합니다. 클론한 뒤 한 번만 아래 명령을 실행하세요.
-
-```sh
-git config core.hooksPath .githooks
-```
-
-훅은 스테이징된 `.go` 파일만 포매팅하고, 변경된 결과를 다시 스테이징합니다.
-
 ## Project structure
 
 ```text
