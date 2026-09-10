@@ -2,7 +2,6 @@ package ping
 
 import (
 	"log"
-
 	"github.com/bwmarrin/discordgo"
 )
 

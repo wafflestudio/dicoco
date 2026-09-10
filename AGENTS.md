@@ -22,3 +22,5 @@ This repository contains a small Go Discord bot built with `discordgo`.
 ## Conventions
 
 - Add new behavior as a package under `internal/feature` and register it in `internal/app/app.go`.
+- Prefer the Go standard library and do not add third-party dependencies only for convenience.
+- Add an external dependency only when implementing the same behavior with the standard library would be substantially more complex or error-prone, as is the case with `discordgo`.

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -eu
+
+git diff --cached --quiet --diff-filter=ACMR -- '*.go' && exit 0
+
+git diff --cached --name-only -z --diff-filter=ACMR -- '*.go' |
+  xargs -0 gofmt -w
+git diff --cached --name-only -z --diff-filter=ACMR -- '*.go' |
+  xargs -0 git add --

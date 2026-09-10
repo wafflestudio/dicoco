@@ -6,7 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-type Module interface {
+type Module interface { // Register메소드 있으면 모두 Module 취급. 따로 선언 안함.
 	Register(*discordgo.Session)
 }
 
@@ -23,7 +23,8 @@ func NewClient(token string) (*Client, error) {
 	session.Identify.Intents =
 		discordgo.IntentsGuilds |
 			discordgo.IntentsGuildMessages |
-			discordgo.IntentsMessageContent
+			discordgo.IntentsMessageContent |
+			discordgo.IntentsGuildMessageReactions
 
 	return &Client{session: session}, nil
 }

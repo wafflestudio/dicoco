@@ -9,6 +9,7 @@ import (
 
 	"github.com/wafflestudio/discord/internal/config"
 	"github.com/wafflestudio/discord/internal/discord"
+	"github.com/wafflestudio/discord/internal/feature/onreaction"
 	"github.com/wafflestudio/discord/internal/feature/ping"
 )
 
@@ -23,6 +24,7 @@ func Run() error {
 		return err
 	}
 	discordClient.Register(ping.New())
+	discordClient.Register(onreaction.New())
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
