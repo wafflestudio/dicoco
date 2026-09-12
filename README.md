@@ -1,4 +1,4 @@
-# Discord Bot
+# Dicoco
 
 디스코드 Bot 레포
 

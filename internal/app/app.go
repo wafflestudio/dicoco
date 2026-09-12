@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/wafflestudio/discord/internal/config"
-	"github.com/wafflestudio/discord/internal/discord"
-	"github.com/wafflestudio/discord/internal/feature/onreaction"
-	"github.com/wafflestudio/discord/internal/feature/ping"
+	"github.com/wafflestudio/dicoco/internal/config"
+	"github.com/wafflestudio/dicoco/internal/discord"
+	"github.com/wafflestudio/dicoco/internal/feature/onreaction"
+	"github.com/wafflestudio/dicoco/internal/feature/ping"
 )
 
 func Run() error {

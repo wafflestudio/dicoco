@@ -1,4 +1,4 @@
-module github.com/wafflestudio/discord
+module github.com/wafflestudio/dicoco
 
 go 1.27.1
 

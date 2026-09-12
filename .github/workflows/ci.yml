@@ -42,4 +42,4 @@ jobs:
               run: go test ./...
 
             - name: Build
-              run: go build -trimpath -o /tmp/discord-bot ./cmd/bot
+              run: go build -trimpath -o /tmp/dicoco ./cmd/bot

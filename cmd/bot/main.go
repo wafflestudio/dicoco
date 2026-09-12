@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/wafflestudio/discord/internal/app"
+	"github.com/wafflestudio/dicoco/internal/app"
 )
 
 func main() {
