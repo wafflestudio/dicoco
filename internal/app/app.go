@@ -9,8 +9,9 @@ import (
 
 	"github.com/wafflestudio/dicoco/internal/config"
 	"github.com/wafflestudio/dicoco/internal/discord"
-	"github.com/wafflestudio/dicoco/internal/feature/onreaction"
-	"github.com/wafflestudio/dicoco/internal/feature/ping"
+	"github.com/wafflestudio/dicoco/internal/feature/reference"
+	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
+	"github.com/wafflestudio/dicoco/internal/feature/reference/ping"
 )
 
 func Run() error {
@@ -23,6 +24,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	discordClient.Register(reference.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
 
