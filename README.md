@@ -19,7 +19,7 @@ internal/
 ├── discord/                discordgo 세션을 감싼 클라이언트
 └── feature/                서로 독립적인 봇 기능
     └── reference/          구현 참고용 봇 기능
-        ├── dm.go           DM 수신 및 응답 확인
+        ├── dm/             DM 수신 및 응답 확인
         ├── onreaction/     리액션 처리 확인
         └── ping/           멘션을 통한 봇 응답 확인
 ```

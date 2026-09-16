@@ -9,7 +9,8 @@ import (
 
 	"github.com/wafflestudio/dicoco/internal/config"
 	"github.com/wafflestudio/dicoco/internal/discord"
-	"github.com/wafflestudio/dicoco/internal/feature/reference"
+	"github.com/wafflestudio/dicoco/internal/feature/admin/notion"
+	"github.com/wafflestudio/dicoco/internal/feature/reference/dm"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/ping"
 )
@@ -24,7 +25,14 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	discordClient.Register(reference.New())
+
+	notionHandler, err := notion.New()
+	if err != nil {
+		return err
+	}
+	discordClient.Register(notionHandler)
+
+	discordClient.Register(dm.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
 
