@@ -16,6 +16,8 @@ import (
 	"github.com/wafflestudio/dicoco/internal/feature/waffle"
 )
 
+const waffleEnabled = false
+
 func Run() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -37,11 +39,14 @@ func Run() error {
 	discordClient.Register(dm.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
-	waffleHandler, err := waffle.New()
-	if err != nil {
-		return err
+	var waffleHandler *waffle.Handler
+	if waffleEnabled {
+		waffleHandler, err = waffle.New()
+		if err != nil {
+			return err
+		}
+		discordClient.Register(waffleHandler)
 	}
-	discordClient.Register(waffleHandler)
 	// Feature registration ends here.
 
 	ctx, stop := signal.NotifyContext(
@@ -57,7 +62,9 @@ func Run() error {
 
 	userID, username := discordClient.User()
 	log.Printf("bot connected as %s (%s)", username, userID)
-	go waffleHandler.Run(ctx)
+	if waffleHandler != nil {
+		go waffleHandler.Run(ctx)
+	}
 	<-ctx.Done()
 	log.Println("stopping bot")
 

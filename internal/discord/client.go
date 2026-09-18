@@ -2,6 +2,7 @@ package discord
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -32,6 +33,7 @@ func NewClient(token string) (*Client, error) {
 
 func (c *Client) Register(module Module) {
 	module.Register(c.session)
+	log.Printf("[bot] registered %T", module)
 }
 
 func (c *Client) Open() error {
