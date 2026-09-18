@@ -13,6 +13,7 @@ import (
 	"github.com/wafflestudio/dicoco/internal/feature/reference/dm"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/ping"
+	"github.com/wafflestudio/dicoco/internal/feature/waffle"
 )
 
 func Run() error {
@@ -26,6 +27,7 @@ func Run() error {
 		return err
 	}
 
+	// Feature registration starts here.
 	notionHandler, err := notion.New()
 	if err != nil {
 		return err
@@ -35,6 +37,12 @@ func Run() error {
 	discordClient.Register(dm.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
+	waffleHandler, err := waffle.New()
+	if err != nil {
+		return err
+	}
+	discordClient.Register(waffleHandler)
+	// Feature registration ends here.
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -49,6 +57,7 @@ func Run() error {
 
 	userID, username := discordClient.User()
 	log.Printf("bot connected as %s (%s)", username, userID)
+	go waffleHandler.Run(ctx)
 	<-ctx.Done()
 	log.Println("stopping bot")
 
