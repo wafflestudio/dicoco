@@ -13,7 +13,6 @@ import (
 	"github.com/wafflestudio/dicoco/internal/feature/reference/dm"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/ping"
-	"github.com/wafflestudio/dicoco/internal/feature/waffle"
 )
 
 func Run() error {
@@ -36,7 +35,6 @@ func Run() error {
 	discordClient.Register(dm.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
-	discordClient.Register(waffle.New())
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
