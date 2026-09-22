@@ -1,6 +1,7 @@
 package scratch
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
@@ -22,14 +23,17 @@ var (
 )
 
 type Result struct {
-	Attempts   uint64
-	Score      int
-	BestHash   [32]byte
-	Elapsed    time.Duration
-	Submission string
+	Attempts       uint64
+	Score          int
+	BestHash       [32]byte
+	Elapsed        time.Duration
+	ConnectElapsed time.Duration
+	SubmitElapsed  time.Duration
+	Submission     string
 }
 
 type Handler struct {
+	pool   *poolClient
 	logger *log.Logger
 	mine   bool
 	run    func(uint64) (Result, error)
@@ -38,14 +42,22 @@ type Handler struct {
 }
 
 func New() *Handler {
+	pool := newPoolClient()
 	return &Handler{
+		pool:   pool,
 		logger: log.Default(),
 		mine:   scratchMiningEnabled,
-		run:    runPool,
+		run:    pool.run,
 		random: randomScore,
 		send: func(session *discordgo.Session, channelID, content string, reference *discordgo.MessageReference) (*discordgo.Message, error) {
 			return session.ChannelMessageSendReply(channelID, content, reference)
 		},
+	}
+}
+
+func (h *Handler) Run(ctx context.Context) {
+	if h.mine {
+		h.pool.serve(ctx, h.logger)
 	}
 }
 
@@ -76,14 +88,18 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 		return
 	}
 
-	_, err := h.run(defaultAttempts)
+	result, err := h.run(defaultAttempts)
 	if err != nil {
 		h.logger.Printf("scratch: %v", err)
 		h.reply(session, message, "복권을 긁다가 문제가 생겼어요.")
 		return
 	}
 
-	h.logger.Printf("%dms", time.Since(started).Milliseconds())
+	if result.Submission != "" {
+		h.logger.Printf("total=%dms connect=%dms hash=%dms submit=%dms", time.Since(started).Milliseconds(), result.ConnectElapsed.Milliseconds(), result.Elapsed.Milliseconds(), result.SubmitElapsed.Milliseconds())
+	} else {
+		h.logger.Printf("total=%dms connect=%dms hash=%dms", time.Since(started).Milliseconds(), result.ConnectElapsed.Milliseconds(), result.Elapsed.Milliseconds())
+	}
 	h.reply(session, message, "긁기 성공!")
 }
 

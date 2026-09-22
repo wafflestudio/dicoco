@@ -20,7 +20,7 @@ func TestScratchCommandRunsTenThousandAttempts(t *testing.T) {
 			if attempts != defaultAttempts {
 				t.Fatalf("attempts = %d, want %d", attempts, defaultAttempts)
 			}
-			return Result{Attempts: attempts, Score: 73, Elapsed: 2 * time.Millisecond}, nil
+			return Result{Attempts: attempts, Score: 73, Elapsed: 2 * time.Millisecond, ConnectElapsed: 15 * time.Millisecond}, nil
 		},
 		send: func(_ *discordgo.Session, _, content string, _ *discordgo.MessageReference) (*discordgo.Message, error) {
 			reply = content
@@ -38,7 +38,7 @@ func TestScratchCommandRunsTenThousandAttempts(t *testing.T) {
 	if reply != "긁기 성공!" {
 		t.Fatalf("unexpected reply: %q", reply)
 	}
-	if !regexp.MustCompile(`^\d+ms\n$`).MatchString(output.String()) {
+	if !regexp.MustCompile(`^total=\d+ms connect=15ms hash=2ms\n$`).MatchString(output.String()) {
 		t.Fatalf("unexpected log: %q", output.String())
 	}
 }

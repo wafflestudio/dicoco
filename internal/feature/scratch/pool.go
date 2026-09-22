@@ -3,7 +3,6 @@ package scratch
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -32,6 +31,7 @@ type poolEvent struct {
 	err     error
 }
 type poolSession struct {
+	onJob      func(*poolJob) error
 	conn       net.Conn
 	events     chan poolEvent
 	job        *poolJob
@@ -46,104 +46,35 @@ type poolJob struct {
 	clean                    bool
 }
 
-func runPool(attempts uint64) (Result, error) {
-	if attempts == 0 || attempts > 1<<32 {
-		return Result{}, fmt.Errorf("invalid attempt count")
-	}
-	address, script, err := loadWallet()
-	if err != nil {
-		return Result{}, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), poolTimeout)
-	defer cancel()
-	conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", poolAddress)
-	if err != nil {
-		return Result{}, fmt.Errorf("connect CKPool: %w", err)
-	}
-	defer conn.Close()
-	return runSession(ctx, conn, address, script, attempts)
-}
-
-func runSession(ctx context.Context, conn net.Conn, address string, script []byte, attempts uint64) (Result, error) {
-	defer conn.Close()
-	ctx, cancel := context.WithTimeout(ctx, poolTimeout)
-	defer cancel()
-	stop := context.AfterFunc(ctx, func() { conn.Close() })
-	defer stop()
-	deadline, _ := ctx.Deadline()
-	if err := conn.SetDeadline(deadline); err != nil {
-		return Result{}, err
-	}
-	s := &poolSession{conn: conn, events: make(chan poolEvent, 8)}
-	go s.read(ctx)
+func (s *poolSession) handshake(ctx context.Context, address string) error {
 	if err := s.send(1, "mining.subscribe", []any{"dicoco/1.0"}); err != nil {
-		return Result{}, err
+		return err
 	}
 	sub, err := s.wait(ctx, 1)
 	if err != nil {
-		return Result{}, fmt.Errorf("subscribe: %w", err)
+		return fmt.Errorf("subscribe: %w", err)
 	}
 	var fields []json.RawMessage
 	if json.Unmarshal(sub, &fields) != nil || len(fields) != 3 {
-		return Result{}, fmt.Errorf("invalid subscription")
+		return fmt.Errorf("invalid subscription")
 	}
 	var extra string
 	if json.Unmarshal(fields[1], &extra) != nil || json.Unmarshal(fields[2], &s.extra2Size) != nil || s.extra2Size < 1 || s.extra2Size > 32 {
-		return Result{}, fmt.Errorf("invalid extranonce")
+		return fmt.Errorf("invalid extranonce")
 	}
 	s.extra1, err = decodeHex(extra, -1, 32)
 	if err != nil {
-		return Result{}, err
+		return err
 	}
 	worker := address + ".dicoco"
 	if err := s.send(2, "mining.authorize", []any{worker, "x"}); err != nil {
-		return Result{}, err
+		return err
 	}
 	approved, err := s.wait(ctx, 2)
 	if err != nil || string(approved) != "true" {
-		return Result{}, fmt.Errorf("authorization failed: %v", err)
+		return fmt.Errorf("authorization failed: %v", err)
 	}
-	for s.job == nil {
-		if _, err := s.next(ctx); err != nil {
-			return Result{}, err
-		}
-	}
-	job := s.job
-	extra2 := make([]byte, s.extra2Size)
-	if _, err := rand.Read(extra2); err != nil {
-		return Result{}, err
-	}
-	header, target, err := job.header(s.extra1, extra2, script)
-	if err != nil {
-		return Result{}, fmt.Errorf("verify job: %w", err)
-	}
-	started := time.Now()
-	var best [32]byte
-	for nonce := uint64(0); nonce < attempts; nonce++ {
-		if nonce%128 == 0 {
-			if err := ctx.Err(); err != nil {
-				return Result{}, err
-			}
-			if err := s.checkUpdates(job); err != nil {
-				return Result{}, err
-			}
-		}
-		binary.LittleEndian.PutUint32(header[76:], uint32(nonce))
-		hash := doubleHash(header[:])
-		if nonce == 0 || lessBitcoinHash(hash, best) {
-			best = hash
-		}
-		if !lessBitcoinHash(target, hash) {
-			result := Result{Attempts: nonce + 1, Score: 100, BestHash: hash, Elapsed: time.Since(started), Submission: "unknown"}
-			// A valid network candidate also meets the pool's share target.
-			result.Submission, err = s.submit(ctx, worker, job, extra2, uint32(nonce))
-			return result, err
-		}
-	}
-	if err := s.checkUpdates(job); err != nil {
-		return Result{}, err
-	}
-	return Result{Attempts: attempts, Score: scoreBestHash(best, attempts), BestHash: best, Elapsed: time.Since(started)}, nil
+	return nil
 }
 
 func (s *poolSession) submit(ctx context.Context, worker string, job *poolJob, extra2 []byte, nonce uint32) (string, error) {
@@ -205,6 +136,9 @@ func (s *poolSession) handle(e poolEvent) (poolMessage, error) {
 			return e.message, err
 		}
 		s.job = job
+		if s.onJob != nil {
+			return e.message, s.onJob(job)
+		}
 	case "mining.set_extranonce", "client.reconnect":
 		return e.message, fmt.Errorf("pool changed session; retry command")
 	}
@@ -234,24 +168,6 @@ func (s *poolSession) wait(ctx context.Context, id int) (json.RawMessage, error)
 		}
 		return m.Result, nil
 	}
-}
-
-func (s *poolSession) checkUpdates(original *poolJob) error {
-	// Bound work even if an endpoint floods notifications.
-	for i := 0; i < 16; i++ {
-		select {
-		case e := <-s.events:
-			if _, err := s.handle(e); err != nil {
-				return err
-			}
-			if s.job != original && s.job.clean {
-				return fmt.Errorf("job expired; retry command")
-			}
-		default:
-			return nil
-		}
-	}
-	return fmt.Errorf("too many pool messages")
 }
 
 func decodeHex(value string, size, max int) ([]byte, error) {

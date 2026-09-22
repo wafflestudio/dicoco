@@ -7,8 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -153,7 +156,14 @@ func TestSessionHandshakeAndRun(t *testing.T) {
 		enc.Encode(map[string]any{"id": 2, "result": true, "error": nil})
 		serverErr <- nil
 	}()
-	result, err := runSession(context.Background(), client, testAddress, script, 10000)
+	p := newPoolClient()
+	p.load = func() (string, []byte, error) { return testAddress, script, nil }
+	p.dial = func(context.Context) (net.Conn, error) { return client, nil }
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- p.connect(ctx) }()
+	result, err := p.run(10000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,6 +173,42 @@ func TestSessionHandshakeAndRun(t *testing.T) {
 	if result.Attempts != 10000 || result.Score < 1 || result.Score > 99 {
 		t.Fatalf("unexpected result %+v", result)
 	}
+	// Repeated and concurrent commands reuse this one connection.
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := p.run(10000); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	work, err := p.acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldCtx := work.ctx
+	params := jobFixture(script)
+	params[0] = "new-job"
+	if err := json.NewEncoder(server).Encode(map[string]any{"method": "mining.notify", "params": params}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-oldCtx.Done():
+	case <-ctx.Done():
+		t.Fatal("old job not invalidated")
+	}
+	if _, err := p.run(10000); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown stuck")
+	}
 }
 
 func TestSessionTimeout(t *testing.T) {
@@ -170,8 +216,78 @@ func TestSessionTimeout(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := runSession(ctx, client, testAddress, nil, 10000); err == nil {
+	p := newPoolClient()
+	p.load = func() (string, []byte, error) { return testAddress, nil, nil }
+	p.dial = func(context.Context) (net.Conn, error) { return client, nil }
+	if err := p.connect(ctx); err == nil {
 		t.Fatal("expected timeout")
+	}
+}
+
+func TestReconnectAndShutdown(t *testing.T) {
+	p := newPoolClient()
+	p.retry = time.Millisecond
+	script, _ := addressScript(testAddress)
+	p.load = func() (string, []byte, error) { return testAddress, script, nil }
+	connections := make(chan net.Conn, 4)
+	p.dial = func(context.Context) (net.Conn, error) {
+		client, server := net.Pipe()
+		connections <- server
+		return client, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() { defer close(done); p.serve(ctx, log.New(io.Discard, "", 0)) }()
+	for i := 0; i < 2; i++ {
+		var server net.Conn
+		select {
+		case server = <-connections:
+		case <-ctx.Done():
+			t.Fatal("did not reconnect")
+		}
+		server.Close()
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown stuck")
+	}
+}
+
+func TestUniqueExtranonces(t *testing.T) {
+	c := &liveConnection{nonce: make([]byte, 4)}
+	results := make(chan string, 100)
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			n, err := c.nextNonce()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			results <- hex.EncodeToString(n)
+		}()
+	}
+	wg.Wait()
+	close(results)
+	seen := make(map[string]bool)
+	for n := range results {
+		if seen[n] {
+			t.Fatal("duplicate extranonce")
+		}
+		seen[n] = true
+	}
+	c.nonce = []byte{255}
+	c.exhausted = false
+	if _, err := c.nextNonce(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.nextNonce(); err == nil {
+		t.Fatal("nonce wrapped")
 	}
 }
 
@@ -201,18 +317,5 @@ func TestSubmitCandidate(t *testing.T) {
 				t.Fatal(params)
 			}
 		})
-	}
-}
-
-func TestCleanJobInvalidatesWork(t *testing.T) {
-	script, _ := addressScript(testAddress)
-	b, _ := json.Marshal(jobFixture(script))
-	var params []json.RawMessage
-	json.Unmarshal(b, &params)
-	original := &poolJob{id: "old"}
-	s := &poolSession{job: original, events: make(chan poolEvent, 1)}
-	s.events <- poolEvent{message: poolMessage{Method: "mining.notify", Params: params}}
-	if err := s.checkUpdates(original); err == nil {
-		t.Fatal("stale job accepted")
 	}
 }

@@ -40,7 +40,8 @@ func Run() error {
 	discordClient.Register(dm.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
-	discordClient.Register(scratch.New())
+	scratchHandler := scratch.New()
+	discordClient.Register(scratchHandler)
 	var waffleHandler *waffle.Handler
 	if waffleEnabled {
 		waffleHandler, err = waffle.New()
@@ -64,6 +65,7 @@ func Run() error {
 
 	userID, username := discordClient.User()
 	log.Printf("bot connected as %s (%s)", username, userID)
+	go scratchHandler.Run(ctx)
 	if waffleHandler != nil {
 		go waffleHandler.Run(ctx)
 	}
