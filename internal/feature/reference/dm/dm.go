@@ -2,6 +2,7 @@ package dm
 
 import (
 	"log"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -23,6 +24,9 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 		return
 	}
 	if message.Author == nil || message.Author.Bot {
+		return
+	}
+	if strings.HasPrefix(strings.TrimSpace(message.Content), "!") {
 		return
 	}
 
