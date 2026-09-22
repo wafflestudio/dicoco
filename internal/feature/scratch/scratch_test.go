@@ -3,7 +3,6 @@ package scratch
 import (
 	"bytes"
 	"log"
-	"regexp"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func TestScratchCommandRunsTenThousandAttempts(t *testing.T) {
 			if attempts != defaultAttempts {
 				t.Fatalf("attempts = %d, want %d", attempts, defaultAttempts)
 			}
-			return Result{Attempts: attempts, Score: 73, Elapsed: 2 * time.Millisecond, ConnectElapsed: 15 * time.Millisecond}, nil
+			return Result{Attempts: attempts, Score: 73, BestHash: [32]byte{31: 0x00, 30: 0x04, 29: 0xa8, 28: 0xc2}, Elapsed: 2 * time.Millisecond, ConnectElapsed: 15 * time.Millisecond}, nil
 		},
 		send: func(_ *discordgo.Session, _, content string, _ *discordgo.MessageReference) (*discordgo.Message, error) {
 			reply = content
@@ -35,10 +34,10 @@ func TestScratchCommandRunsTenThousandAttempts(t *testing.T) {
 		Author:    &discordgo.User{ID: "user-1"},
 	}})
 
-	if reply != "긁기 성공!" {
+	if reply != "73점 - `0004a8c`" {
 		t.Fatalf("unexpected reply: %q", reply)
 	}
-	if !regexp.MustCompile(`^total=\d+ms connect=15ms hash=2ms\n$`).MatchString(output.String()) {
+	if output.Len() != 0 {
 		t.Fatalf("unexpected log: %q", output.String())
 	}
 }
@@ -67,7 +66,7 @@ func TestScratchCommandUsesRandomScoreWhenMiningIsDisabled(t *testing.T) {
 		Author:    &discordgo.User{ID: "user-1"},
 	}})
 
-	if reply != "긁기 성공!" {
+	if reply != "100점" {
 		t.Fatalf("unexpected reply: %q", reply)
 	}
 }

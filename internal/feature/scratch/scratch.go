@@ -75,16 +75,16 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 	if strings.TrimSpace(message.Content) != command {
 		return
 	}
-	started := time.Now()
+	// started := time.Now()
 	if !h.mine {
-		_, err := h.random()
+		score, err := h.random()
 		if err != nil {
 			h.logger.Printf("scratch random user_id=%s: %v", message.Author.ID, err)
 			h.reply(session, message, "점수를 뽑다가 문제가 생겼어요.")
 			return
 		}
-		h.logger.Printf("%dms", time.Since(started).Milliseconds())
-		h.reply(session, message, "긁기 성공!")
+		// h.logger.Printf("%dms", time.Since(started).Milliseconds())
+		h.reply(session, message, fmt.Sprintf("%d점", score))
 		return
 	}
 
@@ -95,12 +95,12 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 		return
 	}
 
-	if result.Submission != "" {
-		h.logger.Printf("total=%dms connect=%dms hash=%dms submit=%dms", time.Since(started).Milliseconds(), result.ConnectElapsed.Milliseconds(), result.Elapsed.Milliseconds(), result.SubmitElapsed.Milliseconds())
-	} else {
-		h.logger.Printf("total=%dms connect=%dms hash=%dms", time.Since(started).Milliseconds(), result.ConnectElapsed.Milliseconds(), result.Elapsed.Milliseconds())
-	}
-	h.reply(session, message, "긁기 성공!")
+	// if result.Submission != "" {
+	// 	h.logger.Printf("total=%dms connect=%dms hash=%dms submit=%dms", time.Since(started).Milliseconds(), result.ConnectElapsed.Milliseconds(), result.Elapsed.Milliseconds(), result.SubmitElapsed.Milliseconds())
+	// } else {
+	// 	h.logger.Printf("total=%dms connect=%dms hash=%dms", time.Since(started).Milliseconds(), result.ConnectElapsed.Milliseconds(), result.Elapsed.Milliseconds())
+	// }
+	h.reply(session, message, fmt.Sprintf("%d점 - `%s`", result.Score, HashString(result.BestHash)[:7]))
 }
 
 func (h *Handler) reply(session *discordgo.Session, message *discordgo.MessageCreate, content string) {
