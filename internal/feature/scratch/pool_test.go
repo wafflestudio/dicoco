@@ -122,7 +122,9 @@ func TestJobHeader(t *testing.T) {
 	}
 }
 
-func TestSessionHandshakeAndRun(t *testing.T) {
+// Exercise only the protocol and work lifecycle. Tests must not run the mining
+// loop or connect to an external pool, including on GitHub Actions.
+func TestSessionHandshakeAndWorkRefresh(t *testing.T) {
 	script, _ := addressScript(testAddress)
 	client, server := net.Pipe()
 	defer server.Close()
@@ -163,23 +165,23 @@ func TestSessionHandshakeAndRun(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- p.connect(ctx) }()
-	result, err := p.run(10000)
+	initialWork, err := p.acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := <-serverErr; err != nil {
 		t.Fatal(err)
 	}
-	if result.Attempts != 10000 || result.Score < 1 || result.Score > 99 {
-		t.Fatalf("unexpected result %+v", result)
+	if initialWork.job.id != "job" {
+		t.Fatalf("unexpected job %q", initialWork.job.id)
 	}
-	// Repeated and concurrent commands reuse this one connection.
+	// Concurrent work requests reuse this connection without hashing.
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := p.run(10000); err != nil {
+			if _, err := p.acquire(ctx); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -200,8 +202,12 @@ func TestSessionHandshakeAndRun(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("old job not invalidated")
 	}
-	if _, err := p.run(10000); err != nil {
+	newWork, err := p.acquire(ctx)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if newWork.job.id != "new-job" || newWork.connection != initialWork.connection {
+		t.Fatal("job refresh should reuse the connection")
 	}
 	cancel()
 	select {

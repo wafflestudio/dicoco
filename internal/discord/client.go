@@ -23,6 +23,7 @@ func NewClient(token string) (*Client, error) {
 
 	session.Identify.Intents =
 		discordgo.IntentsGuilds |
+			discordgo.IntentsGuildVoiceStates |
 			discordgo.IntentsGuildMessages |
 			discordgo.IntentsDirectMessages |
 			discordgo.IntentsMessageContent |

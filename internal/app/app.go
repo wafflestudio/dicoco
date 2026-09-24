@@ -10,6 +10,7 @@ import (
 	"github.com/wafflestudio/dicoco/internal/config"
 	"github.com/wafflestudio/dicoco/internal/discord"
 	"github.com/wafflestudio/dicoco/internal/feature/admin/notion"
+	"github.com/wafflestudio/dicoco/internal/feature/draw"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/dm"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/ping"
@@ -42,6 +43,7 @@ func Run() error {
 	discordClient.Register(onreaction.New())
 	scratchHandler := scratch.New()
 	discordClient.Register(scratchHandler)
+	discordClient.Register(draw.New(scratchHandler.Mine))
 	var waffleHandler *waffle.Handler
 	if waffleEnabled {
 		waffleHandler, err = waffle.New()
