@@ -8,9 +8,13 @@ import (
 )
 
 func TestRenderAndResult(t *testing.T) {
-	state := boxState{number: 3, users: []string{"1", "2"}}
+	state := boxState{
+		number:     3,
+		candidates: []candidate{{id: "1", label: "사람"}, {id: "2", label: "봇"}},
+		excluded:   []string{"2"},
+	}
 	for _, got := range []string{render(state), result(state)} {
-		for _, want := range []string{"숫자: 3", "<@1>", "<@2>"} {
+		for _, want := range []string{"숫자: 3", "<@2>"} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("%q does not contain %q", got, want)
 			}
@@ -18,12 +22,15 @@ func TestRenderAndResult(t *testing.T) {
 	}
 }
 
-func TestComponentsRestoreSelectedUsers(t *testing.T) {
-	rows := components(boxState{users: []string{"1", "2"}})
+func TestComponentsUseFilteredStringOptions(t *testing.T) {
+	rows := components(boxState{
+		candidates: []candidate{{id: "1", label: "사람"}, {id: "2", label: "봇"}},
+		excluded:   []string{"2"},
+	})
 	row := rows[0].(discordgo.ActionsRow)
 	menu := row.Components[0].(discordgo.SelectMenu)
-	if menu.MenuType != discordgo.UserSelectMenu || menu.MaxValues != 25 || len(menu.DefaultValues) != 2 {
-		t.Fatalf("unexpected user select menu: %#v", menu)
+	if menu.MenuType != discordgo.StringSelectMenu || menu.MaxValues != 2 || len(menu.Options) != 2 || !menu.Options[1].Default {
+		t.Fatalf("unexpected filtered select menu: %#v", menu)
 	}
 }
 

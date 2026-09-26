@@ -21,12 +21,18 @@ const (
 )
 
 type boxState struct {
-	ownerID   string
-	channelID string
-	messageID string
-	number    int
-	users     []string
-	created   time.Time
+	ownerID    string
+	channelID  string
+	messageID  string
+	number     int
+	candidates []candidate
+	excluded   []string
+	created    time.Time
+}
+
+type candidate struct {
+	id    string
+	label string
 }
 
 type Handler struct {
@@ -56,9 +62,13 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, event *discordgo.M
 	}
 
 	state := boxState{
-		ownerID:   event.Author.ID,
-		channelID: event.ChannelID,
-		created:   h.now(),
+		ownerID:    event.Author.ID,
+		channelID:  event.ChannelID,
+		candidates: []candidate{candidateFromUser(event.Author)},
+		created:    h.now(),
+	}
+	if session.State != nil && session.State.User != nil && session.State.User.ID != event.Author.ID {
+		state.candidates = append(state.candidates, candidateFromUser(session.State.User))
 	}
 	message, err := session.ChannelMessageSendComplex(event.ChannelID, &discordgo.MessageSend{
 		Content:         render(state),
@@ -112,7 +122,7 @@ func (h *Handler) onComponent(session *discordgo.Session, event *discordgo.Inter
 
 	switch data.CustomID {
 	case usersID:
-		state.users = append([]string(nil), data.Values...)
+		state.excluded = append([]string(nil), data.Values...)
 		h.put(state)
 		if err := session.InteractionRespond(event.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseUpdateMessage,
@@ -226,18 +236,22 @@ func (h *Handler) removeExpiredLocked() {
 
 func components(state boxState) []discordgo.MessageComponent {
 	zero := 0
-	defaults := make([]discordgo.SelectMenuDefaultValue, 0, len(state.users))
-	for _, id := range state.users {
-		defaults = append(defaults, discordgo.SelectMenuDefaultValue{ID: id, Type: discordgo.SelectMenuDefaultValueUser})
+	options := make([]discordgo.SelectMenuOption, 0, len(state.candidates))
+	for _, person := range state.candidates {
+		options = append(options, discordgo.SelectMenuOption{
+			Label:   person.label,
+			Value:   person.id,
+			Default: contains(state.excluded, person.id),
+		})
 	}
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{Components: []discordgo.MessageComponent{discordgo.SelectMenu{
-			MenuType:      discordgo.UserSelectMenu,
-			CustomID:      usersID,
-			Placeholder:   "사람을 찾아 선택해 주세요",
-			MinValues:     &zero,
-			MaxValues:     25,
-			DefaultValues: defaults,
+			MenuType:    discordgo.StringSelectMenu,
+			CustomID:    usersID,
+			Placeholder: "제외할 사람 선택",
+			MinValues:   &zero,
+			MaxValues:   len(state.candidates),
+			Options:     options,
 		}}},
 		discordgo.ActionsRow{Components: []discordgo.MessageComponent{
 			discordgo.Button{CustomID: numberID, Label: "숫자 입력", Style: discordgo.SecondaryButton},
@@ -251,15 +265,16 @@ func render(state boxState) string {
 	if state.number > 0 {
 		number = strconv.Itoa(state.number)
 	}
-	users := "선택 없음"
-	if len(state.users) > 0 {
-		mentions := make([]string, 0, len(state.users))
-		for _, id := range state.users {
+	candidates := mentions(candidateIDs(state.candidates))
+	excluded := "선택 없음"
+	if len(state.excluded) > 0 {
+		mentions := make([]string, 0, len(state.excluded))
+		for _, id := range state.excluded {
 			mentions = append(mentions, "<@"+id+">")
 		}
-		users = strings.Join(mentions, ", ")
+		excluded = strings.Join(mentions, ", ")
 	}
-	return fmt.Sprintf("📦 **테스트 박스**\n숫자: %s\n사람: %s\n\n사람을 선택하고 숫자를 입력한 뒤 **확인**을 눌러 주세요.", number, users)
+	return fmt.Sprintf("📦 **테스트 박스**\n후보: %s\n제외: %s\n숫자: %s\n\n제외할 사람을 선택하고 숫자를 입력한 뒤 **확인**을 눌러 주세요.", candidates, excluded, number)
 }
 
 func result(state boxState) string {
@@ -267,15 +282,57 @@ func result(state boxState) string {
 	if state.number > 0 {
 		number = strconv.Itoa(state.number)
 	}
-	users := "선택 없음"
-	if len(state.users) > 0 {
-		mentions := make([]string, 0, len(state.users))
-		for _, id := range state.users {
+	excluded := "선택 없음"
+	if len(state.excluded) > 0 {
+		mentions := make([]string, 0, len(state.excluded))
+		for _, id := range state.excluded {
 			mentions = append(mentions, "<@"+id+">")
 		}
-		users = strings.Join(mentions, ", ")
+		excluded = strings.Join(mentions, ", ")
 	}
-	return fmt.Sprintf("받은 값\n숫자: %s\n사람: %s", number, users)
+	return fmt.Sprintf("받은 값\n숫자: %s\n제외할 사람: %s", number, excluded)
+}
+
+func candidateFromUser(user *discordgo.User) candidate {
+	label := user.GlobalName
+	if label == "" {
+		label = user.Username
+	}
+	if label == "" {
+		label = user.ID
+	}
+	if user.Bot {
+		label += " (봇)"
+	}
+	return candidate{id: user.ID, label: label}
+}
+
+func candidateIDs(candidates []candidate) []string {
+	ids := make([]string, 0, len(candidates))
+	for _, person := range candidates {
+		ids = append(ids, person.id)
+	}
+	return ids
+}
+
+func mentions(ids []string) string {
+	if len(ids) == 0 {
+		return "없음"
+	}
+	values := make([]string, 0, len(ids))
+	for _, id := range ids {
+		values = append(values, "<@"+id+">")
+	}
+	return strings.Join(values, ", ")
+}
+
+func contains(ids []string, target string) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
 }
 
 func modalTextValue(components []discordgo.MessageComponent, customID string) (string, bool) {
