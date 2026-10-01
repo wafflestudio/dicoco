@@ -307,7 +307,7 @@ func (h *Handler) onComponent(session *discordgo.Session, event *discordgo.Inter
 			log.Printf("ladder: defer draw: %v", err)
 			return
 		}
-		h.editBox(session, state, "⏳ 참가자별 10,000회 채굴을 진행하고 있어요.", components(state, true))
+		h.editBox(session, state, "🪜 사다리 타는 중...", components(state, true))
 		go h.draw(session, state)
 	}
 }
