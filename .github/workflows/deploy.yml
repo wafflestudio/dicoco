@@ -15,7 +15,7 @@ jobs:
     build-and-push:
       name: Build and push image
       if: ${{ github.event.workflow_run.conclusion == 'success' }}
-      runs-on: ubuntu-24.04-arm
+      runs-on: blacksmith-4vcpu-ubuntu-2404-arm
 
       env:
         IMAGE_URI: ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_IMAGE }}
