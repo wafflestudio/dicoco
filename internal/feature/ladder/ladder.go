@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/wafflestudio/dicoco/internal/discord"
 	"github.com/wafflestudio/dicoco/internal/feature/scratch"
 )
 
 const (
-	command         = "!박스"
-	usage           = "사용법: `!박스 @역할`"
+	command         = "!사다리"
+	usage           = "사용법: `!사다리 @역할`"
 	usersPrefix     = "ladder_excluded_"
 	previousID      = "ladder_page_previous"
 	nextID          = "ladder_page_next"
@@ -88,11 +89,11 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, event *discordgo.M
 	if event == nil || event.Message == nil || event.Author == nil || event.Author.Bot || event.GuildID == "" {
 		return
 	}
-	if event.ChannelID != h.adminChannelID && event.ChannelID != h.voiceChannelID {
-		return
-	}
 	fields := strings.Fields(event.Content)
 	if len(fields) == 0 || fields[0] != command {
+		return
+	}
+	if !discord.InChannelOrThread(session, event.ChannelID, h.adminChannelID, h.voiceChannelID) {
 		return
 	}
 	roleID, ok := roleMention(fields)
@@ -235,7 +236,7 @@ func (h *Handler) onComponent(session *discordgo.Session, event *discordgo.Inter
 		return
 	}
 	if event.Message == nil {
-		respondEphemeral(session, event.Interaction, "추첨 박스 메시지를 확인할 수 없어요.")
+		respondEphemeral(session, event.Interaction, "사다리 추첨 메시지를 확인할 수 없어요.")
 		return
 	}
 	messageID := event.Message.ID
@@ -449,16 +450,16 @@ func (h *Handler) editableStateLocked(messageID, userID string) (boxState, strin
 		ok = false
 	}
 	if !ok {
-		return boxState{}, "이 추첨 박스는 만료됐어요. `!박스`로 새로 만들어 주세요."
+		return boxState{}, "이 사다리 추첨은 만료됐어요. `!사다리`로 새로 만들어 주세요."
 	}
 	if userID != state.ownerID {
-		return boxState{}, "이 박스는 명령어를 입력한 사람만 사용할 수 있어요."
+		return boxState{}, "이 사다리는 명령어를 입력한 사람만 사용할 수 있어요."
 	}
 	if state.running {
 		return boxState{}, "이미 추첨을 진행하고 있어요."
 	}
 	if state.completed {
-		return boxState{}, "이 박스의 추첨은 이미 끝났어요."
+		return boxState{}, "이 사다리 추첨은 이미 끝났어요."
 	}
 	return state, ""
 }
@@ -637,7 +638,7 @@ func render(state boxState) string {
 		number = strconv.Itoa(state.number) + "명"
 	}
 	pageCount := max(1, (len(state.candidates)+optionsPerPage-1)/optionsPerPage)
-	return fmt.Sprintf("📦 **사다리 추첨**\n대상 역할: <@&%s>\n후보: %d명 · 제외: %d명\n뽑을 인원: %s\n참가자 목록: %d/%d 페이지\n\n제외할 사람을 선택하고 뽑을 인원을 입력한 뒤 **추첨 시작**을 눌러 주세요.", state.roleID, len(state.candidates), len(state.excluded), number, state.page+1, pageCount)
+	return fmt.Sprintf("🪜 **사다리 추첨**\n대상 역할: <@&%s>\n후보: %d명 · 제외: %d명\n뽑을 인원: %s\n참가자 목록: %d/%d 페이지\n\n제외할 사람을 선택하고 뽑을 인원을 입력한 뒤 **추첨 시작**을 눌러 주세요.", state.roleID, len(state.candidates), len(state.excluded), number, state.page+1, pageCount)
 }
 
 func resultMessages(ranked []rankedUser, number int, excluded []string) []string {

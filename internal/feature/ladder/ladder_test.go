@@ -13,16 +13,17 @@ import (
 
 func TestRoleMentionAndOfflineCandidates(t *testing.T) {
 	for _, fields := range [][]string{
-		{"!박스"},
-		{"!박스", "admin"},
-		{"!박스", "<@&123>", "2"},
-		{"!박스", "<@&abc>"},
+		{"!사다리"},
+		{"!사다리", "admin"},
+		{"!사다리", "<@&123>", "2"},
+		{"!사다리", "<@&abc>"},
+		{"!박스", "<@&123>"},
 	} {
 		if _, ok := roleMention(fields); ok {
 			t.Fatalf("accepted invalid command: %v", fields)
 		}
 	}
-	if id, ok := roleMention([]string{"!박스", "<@&123>"}); !ok || id != "123" {
+	if id, ok := roleMention([]string{"!사다리", "<@&123>"}); !ok || id != "123" {
 		t.Fatalf("role mention parsed as %q, %v", id, ok)
 	}
 

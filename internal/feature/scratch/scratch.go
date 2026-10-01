@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/wafflestudio/dicoco/internal/discord"
 )
 
 const command = "!긁기"
@@ -100,13 +101,11 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 	if message == nil || message.Message == nil || message.Author == nil || message.Author.Bot {
 		return
 	}
-	adminAllowed := h.adminChannelID != "" && message.ChannelID == h.adminChannelID
-	voiceAllowed := h.adminVoiceChannelID != "" && message.ChannelID == h.adminVoiceChannelID
-	if message.GuildID != "" && !adminAllowed && !voiceAllowed {
-		return
-	}
 	target := scratchTarget(message.Message)
 	if target == nil {
+		return
+	}
+	if message.GuildID != "" && !discord.InChannelOrThread(session, message.ChannelID, h.adminChannelID, h.adminVoiceChannelID) {
 		return
 	}
 	// started := time.Now()
