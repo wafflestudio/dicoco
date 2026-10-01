@@ -8,6 +8,7 @@
 - Discord bot token
 
 Discord Developer Portal에서 봇의 **Message Content Intent**를 활성화해야 합니다.
+`!박스 @역할`로 접속하지 않은 역할 구성원까지 조회하려면 **Server Members Intent**도 활성화해야 합니다.
 
 ## Project structure
 
