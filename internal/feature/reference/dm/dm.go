@@ -1,6 +1,8 @@
 package dm
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
 	"strings"
 
@@ -35,6 +37,33 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 		dmReply,
 		message.Reference(),
 	); err != nil {
-		log.Printf("reply to Discord DM: %v", err)
+		var restErr *discordgo.RESTError
+		if !errors.As(err, &restErr) {
+			log.Printf("reply to Discord DM: message_type=%d error_type=%T", message.Type, err)
+			return
+		}
+
+		status, code := 0, 0
+		if restErr.Response != nil {
+			status = restErr.Response.StatusCode
+		}
+		if restErr.Message != nil {
+			code = restErr.Message.Code
+		}
+		var detail struct {
+			Errors struct {
+				MessageReference struct {
+					Errors []struct {
+						Code string `json:"code"`
+					} `json:"_errors"`
+				} `json:"message_reference"`
+			} `json:"errors"`
+		}
+		_ = json.Unmarshal(restErr.ResponseBody, &detail)
+		referenceCode := ""
+		if len(detail.Errors.MessageReference.Errors) > 0 {
+			referenceCode = detail.Errors.MessageReference.Errors[0].Code
+		}
+		log.Printf("reply to Discord DM: message_type=%d http_status=%d discord_code=%d reference_code=%q", message.Type, status, code, referenceCode)
 	}
 }
