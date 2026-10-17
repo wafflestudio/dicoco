@@ -1,31 +1,24 @@
-name : Deploy
+name: Deploy
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  push:
+    branches: [ main ]
 
 permissions:
     contents: read
 
-
-
 jobs:
     build-and-push:
       name: Build and push image
-      if: ${{ github.event.workflow_run.conclusion == 'success' }}
       runs-on: ubuntu-24.04-arm
 
       env:
         IMAGE_URI: ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_IMAGE }}
-        IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        IMAGE_TAG: ${{ github.sha }}
 
       steps:
-        - name: Checkout tested commit
+        - name: Checkout
           uses: actions/checkout@v7
-          with:
-            ref: ${{ github.event.workflow_run.head_sha }}
 
         - name: Login to OCIR
           uses: docker/login-action@v4
@@ -48,7 +41,7 @@ jobs:
               ${{ env.IMAGE_URI }}:${{ env.IMAGE_TAG }}
               ${{ env.IMAGE_URI }}:latest
             labels: |
-              org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+              org.opencontainers.image.revision=${{ github.sha }}
               org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             cache-from: type=gha
             cache-to: type=gha,mode=max
@@ -60,5 +53,3 @@ jobs:
             tag: ${{ env.IMAGE_TAG }}
             overlay-path: argocd/discord-bot
             private-key: ${{ secrets.DEPLOYER_APP_PRIVATE_KEY }}
-
- 
