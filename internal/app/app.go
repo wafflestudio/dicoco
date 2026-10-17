@@ -13,6 +13,7 @@ import (
 	"github.com/wafflestudio/dicoco/internal/feature/emoji/tada"
 	"github.com/wafflestudio/dicoco/internal/feature/ladder"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/dm"
+	githubpr "github.com/wafflestudio/dicoco/internal/feature/reference/github_pr"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/ping"
 	"github.com/wafflestudio/dicoco/internal/feature/scratch"
@@ -42,6 +43,7 @@ func Run() error {
 	discordClient.Register(dm.New())
 	discordClient.Register(ping.New())
 	discordClient.Register(onreaction.New())
+	discordClient.Register(githubpr.New())
 	discordClient.Register(tada.New())
 	scratchHandler := scratch.New()
 	discordClient.Register(scratchHandler)
