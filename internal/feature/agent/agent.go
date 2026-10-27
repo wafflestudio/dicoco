@@ -41,6 +41,7 @@ type Request struct {
 	AuthorName string `json:"author_name"`
 	Text       string `json:"text"`
 	Context    string `json:"context"`
+	Reset      bool   `json:"reset,omitempty"`
 	Status     string `json:"status"`
 }
 
@@ -77,6 +78,9 @@ func (h *Handler) Register(s *discordgo.Session) {
 
 func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate) {
 	if m == nil || m.Message == nil || m.Author == nil || m.Author.Bot || m.WebhookID != "" {
+		return
+	}
+	if h.handleModelCommand(s, botID, m) {
 		return
 	}
 	h.mu.Lock()
@@ -143,7 +147,7 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 	}
 	threadID := m.ChannelID
 	var priorContext string
-	if isThread {
+	if isThread && text != "/new" {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		messages, err := s.ChannelMessages(m.ChannelID, 20, m.ID, "", "", discordgo.WithContext(ctx))
 		if err != nil {
@@ -198,7 +202,7 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 	}
 	conversation.ContextMessageID = m.ID
 	h.state.Threads[threadID] = conversation
-	h.state.Requests = append(h.state.Requests, Request{ID: m.ID, ThreadID: threadID, AuthorID: m.Author.ID, AuthorName: m.Author.Username, Text: text, Context: priorContext, Status: "queued"})
+	h.state.Requests = append(h.state.Requests, Request{ID: m.ID, ThreadID: threadID, AuthorID: m.Author.ID, AuthorName: m.Author.Username, Text: text, Context: priorContext, Reset: text == "/new", Status: "queued"})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := s.MessageReactionAdd(m.ChannelID, m.ID, "✅", discordgo.WithContext(ctx)); err != nil {
 		log.Printf("[agent] acknowledge request %s: %v", m.ID, err)
@@ -247,6 +251,21 @@ func (h *Handler) next() (Request, bool) {
 }
 
 func (h *Handler) process(ctx context.Context, s discordAPI, r Request) bool {
+	if r.Reset {
+		h.mu.Lock()
+		conversation := h.state.Threads[r.ThreadID]
+		conversation.SessionID = ""
+		// Keep the cursor, including any later requests already admitted after
+		// /new. They must not import history from before this reset boundary.
+		h.state.Threads[r.ThreadID] = conversation
+		h.mu.Unlock()
+		if err := h.send(s, r.ThreadID, "새 대화를 시작했어요."); err != nil {
+			h.setStatus(r.ID, "delivery_failed")
+		} else {
+			h.setStatus(r.ID, "completed")
+		}
+		return true
+	}
 	workCtx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
 	stopTyping := startTyping(workCtx, s, r.ThreadID)
