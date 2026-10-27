@@ -15,6 +15,7 @@ import (
 	"github.com/wafflestudio/dicoco/internal/feature/agent"
 	"github.com/wafflestudio/dicoco/internal/feature/emoji/tada"
 	"github.com/wafflestudio/dicoco/internal/feature/ladder"
+	"github.com/wafflestudio/dicoco/internal/feature/reference/dm"
 	githubpr "github.com/wafflestudio/dicoco/internal/feature/reference/github_pr"
 	"github.com/wafflestudio/dicoco/internal/feature/reference/onreaction"
 	"github.com/wafflestudio/dicoco/internal/feature/scratch"
@@ -41,6 +42,7 @@ func Run() error {
 	}
 
 	// Feature registration starts here.
+	discordClient.Register(dm.New())
 	var agentHandler *agent.Handler
 	if cfg.AgentEnabled {
 		var engineEnvironment []string

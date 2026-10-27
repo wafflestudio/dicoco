@@ -85,17 +85,19 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 	isDM := m.GuildID == ""
 	isThread := followup && !isDM
 	var parentID string
-	if !isDM {
-		mentioned := false
-		for _, user := range m.Mentions {
-			if user != nil && user.ID == botID {
-				mentioned = true
-				break
-			}
+	mentioned := false
+	for _, user := range m.Mentions {
+		if user != nil && user.ID == botID {
+			mentioned = true
+			break
 		}
-		if !mentioned {
-			return
-		}
+	}
+	if !mentioned {
+		return
+	}
+	// Replies can mention the bot implicitly; DMs require a tag in the text.
+	if isDM && !strings.Contains(m.Content, "<@"+botID+">") && !strings.Contains(m.Content, "<@!"+botID+">") {
+		return
 	}
 	if followup {
 		if conversation.GuildID != m.GuildID {

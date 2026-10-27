@@ -174,12 +174,26 @@ func TestDMAndAnyGuildChannel(t *testing.T) {
 	h := New(e)
 	h.discord = d
 	h.handle(d, "bot", event("guild", "channel", "guild", "<@bot> request in any channel", true))
-	h.handle(d, "bot", event("dm", "dm-channel", "", "question without mention", false))
+	h.handle(d, "bot", event("dm", "dm-channel", "", "<@bot> question", true))
 	if len(h.state.Requests) != 2 || h.state.Requests[1].ID != "dm" {
-		t.Fatal("guild mentions and unmentioned DMs must both work without an admin channel")
+		t.Fatal("guild and DM mentions must both work without an admin channel")
 	}
 	runWorker(t, h)
 	awaitStatus(t, h, "dm", "completed")
+}
+
+func TestDMRequiresExplicitMention(t *testing.T) {
+	h, d, _ := testHandler(t)
+	for _, text := range []string{"ordinary DM", "!긁기", "reply without a tag"} {
+		h.handle(d, "bot", event(text, "dm-channel", "", text, true))
+	}
+	if len(h.state.Requests) != 0 || len(h.state.Threads) != 0 || len(d.sent) != 0 {
+		t.Fatal("untagged DMs must be left to the DM receipt handler")
+	}
+	h.handle(d, "bot", event("tagged", "dm-channel", "", "<@!bot> !긁기", true))
+	if len(h.state.Requests) != 1 || h.state.Requests[0].Text != "!긁기" {
+		t.Fatal("explicitly tagged DMs must reach the agent, including prefix commands")
+	}
 }
 
 func TestSequentialFollowupsAndDMSessions(t *testing.T) {
@@ -188,7 +202,7 @@ func TestSequentialFollowupsAndDMSessions(t *testing.T) {
 	e.release = make(chan struct{}, 4)
 	h.handle(d, "bot", event("first", "channel", "guild", "<@bot> question", true))
 	h.handle(d, "bot", event("followup", "thread-first", "guild", "<@bot> follow up", true))
-	h.handle(d, "bot", event("dm", "dm-channel", "", "private question", false))
+	h.handle(d, "bot", event("dm", "dm-channel", "", "<@bot> private question", true))
 	h.handle(d, "bot", event("other", "another-channel", "guild", "<@bot> separate thread", true))
 	runWorker(t, h)
 	for _, id := range []string{"first", "followup", "dm", "other"} {
@@ -271,7 +285,7 @@ func TestTimeoutInterruptsBeforeNextRequest(t *testing.T) {
 	h, d, e := testHandler(t)
 	h.timeout = 15 * time.Millisecond
 	e.release = make(chan struct{})
-	h.handle(d, "bot", event("timeout", "dm", "", "question", false))
+	h.handle(d, "bot", event("timeout", "dm", "", "<@bot> question", true))
 	runWorker(t, h)
 	awaitStatus(t, h, "timeout", "failed")
 	e.mu.Lock()

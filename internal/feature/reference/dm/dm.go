@@ -22,6 +22,9 @@ func (h *Handler) Register(session *discordgo.Session) {
 }
 
 func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
+	if message == nil || message.Message == nil {
+		return
+	}
 	if message.GuildID != "" {
 		return
 	}
@@ -30,6 +33,15 @@ func (h *Handler) onMessageCreate(session *discordgo.Session, message *discordgo
 	}
 	if strings.HasPrefix(strings.TrimSpace(message.Content), "!") {
 		return
+	}
+	if session.State != nil && session.State.User != nil {
+		botID := session.State.User.ID
+		for _, user := range message.Mentions {
+			if user != nil && user.ID == botID &&
+				(strings.Contains(message.Content, "<@"+botID+">") || strings.Contains(message.Content, "<@!"+botID+">")) {
+				return
+			}
+		}
 	}
 
 	if _, err := session.ChannelMessageSendReply(
