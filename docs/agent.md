@@ -165,11 +165,12 @@ App을 `wafflestudio`에 설치하고 대상 저장소에 접근 권한을 준�
 ```
 
 OpenCode가 `gh pr view`, `gh pr diff`, `gh api --method GET`으로 관련 자료를 읽고, 명시적으로 게시를 요청받으면 `gh pr review URL --comment --body ...`로 등록한다.
+특정 줄에 댓글을 요청하면 diff의 파일·라인과 head SHA를 확인하고 `gh api --method POST repos/wafflestudio/REPO/pulls/NUMBER/comments`로 등록한다.
 단순 코드 질문이나 PR 조사만으로는 GitHub에 게시하지 않도록 지침을 전달한다.
 커밋 SHA 고정·게시 전 재확인·중복 게시 확인은 에이전트에게 전달하는 지침이며, Go가 별도 PR 워크플로로 강제 검증하지 않는다.
 
 각 OpenCode 세션에는 파일 읽기·glob·grep·웹 fetch·웹 검색과 필요한 `gh` 셸 명령을 허용하는 권한을 지정한다.
-셸 전체를 여는 대신 PR·저장소 조회, GET API 호출과 COMMENT 리뷰 명령을 허용한다. 수정·서브에이전트·MCP·프로젝트 밖 접근은 허용하지 않는다. 대상 코드를 실행해서 테스트하지는 않는다.
+셸 전체를 여는 대신 PR·저장소 조회, GET API 호출, COMMENT 리뷰 명령과 줄 댓글 POST API만 허용한다. 수정·서브에이전트·MCP·프로젝트 밖 접근은 허용하지 않는다. 대상 코드를 실행해서 테스트하지는 않는다.
 OpenCode의 도구 권한은 실행 시 검사되는 규칙이며 프롬프트와 별개다. 다만 셸 분석을 포함한 애플리케이션 권한이므로 OS 샌드박스와 같은 격리를 보장하지는 않는다.
 웹 검색은 OpenCode와 해당 제공자의 실제 지원 상태에 따라 제한될 수 있다.
 대상 코드에 없는 정보나 제공되지 않은 PR을 읽은 것처럼 답하지 않도록 지침을 전달한다.

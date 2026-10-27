@@ -196,7 +196,6 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 	conversation.ContextMessageID = m.ID
 	h.state.Threads[threadID] = conversation
 	h.state.Requests = append(h.state.Requests, Request{ID: m.ID, ThreadID: threadID, AuthorID: m.Author.ID, AuthorName: m.Author.Username, Text: text, Context: priorContext, Status: "queued"})
-	h.send(s, threadID, "접수했어요. 순서대로 확인하고 여기에 답변할게요.")
 	select {
 	case h.wake <- struct{}{}:
 	default:
@@ -240,7 +239,6 @@ func (h *Handler) next() (Request, bool) {
 }
 
 func (h *Handler) process(ctx context.Context, s discordAPI, r Request) bool {
-	h.send(s, r.ThreadID, "코드와 자료를 확인하고 있어요. 분석은 최대 10분 동안 진행합니다.")
 	workCtx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
 	h.mu.Lock()

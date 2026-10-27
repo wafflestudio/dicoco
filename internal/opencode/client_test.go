@@ -131,6 +131,12 @@ func TestLiveGHPermissions(t *testing.T) {
 		{"gh pr diff https://github.com/wafflestudio/dicoco/pull/1", "allow"},
 		{"gh api --method GET repos/wafflestudio/dicoco/contents/README.md", "allow"},
 		{"gh pr review https://github.com/wafflestudio/dicoco/pull/1 --comment --body example", "allow"},
+		{"gh api --method POST repos/wafflestudio/dicoco/pulls/1/comments -f body='lgtm!' -f commit_id=abc -f path=main.go -F line=10 -f side=RIGHT", "allow"},
+		{"gh api --method POST repos/wafflestudio/dicoco/pulls/1/comments -f body=example --method DELETE", "deny"},
+		{"gh api --method POST repos/wafflestudio/dicoco/pulls/1/comments -XDELETE", "deny"},
+		{"gh api --method POST repos/wafflestudio/dicoco/pulls/1/comments --input /tmp/comment.json", "deny"},
+		{"gh api --method POST repos/wafflestudio/dicoco/pulls/1/reviews -f event=APPROVE", "deny"},
+		{"gh api --method POST repos/wafflestudio/dicoco/issues -f title=example", "deny"},
 		{"gh pr review https://github.com/wafflestudio/dicoco/pull/1 --comment --approve --body example", "deny"},
 		{"gh api --method GET repos/wafflestudio/dicoco/issues --method=POST", "deny"},
 		{"gh pr merge https://github.com/wafflestudio/dicoco/pull/1", "deny"},
@@ -150,8 +156,46 @@ func TestLiveGHPermissions(t *testing.T) {
 	t.Log("installed OpenCode enforces gh allow/deny rules; no model or GitHub calls made")
 }
 
-// Opt-in integration test: starts the real installed OpenCode, exercises default
-// free-model file reading and session context against a disposable fixture only.
+// Exercise the actual shell tool with a fake gh; never contact GitHub or post.
+func TestLiveGHShell(t *testing.T) {
+	if os.Getenv("DICOCO_OPENCODE_SHELL_TEST") != "1" {
+		t.Skip("set DICOCO_OPENCODE_SHELL_TEST=1 for a model call with a fake gh CLI")
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	if err := os.Mkdir(bin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(dir, "gh-called")
+	script := "#!/bin/sh\nprintf called > '" + marker + "'\nprintf '%s\\n' '{\"title\":\"dicoco-shell-probe\"}'\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	c, stop, err := Start(ctx, "opencode", dir, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	id, err := c.Create(ctx, "Fake gh shell execution check")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.request(context.Background(), "DELETE", "/api/session/"+id, nil, nil)
+	answer, err := c.Ask(ctx, id, "shell_probe", "Use the shell tool to run exactly: gh pr view https://github.com/wafflestudio/dicoco/pull/1 --json title . This environment has a fake gh executable for testing and makes no GitHub requests. Return the title from the actual command output. Do not read files or use web tools.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("gh was never executed; answer=%q", answer)
+	}
+	if !strings.Contains(answer, "dicoco-shell-probe") {
+		t.Fatalf("missing shell result: %q", answer)
+	}
+}
+
+// Exercise default-model file reading and session context against a fixture.
 func TestLiveOpenCode(t *testing.T) {
 	if os.Getenv("DICOCO_OPENCODE_LIVE_TEST") != "1" {
 		t.Skip("set DICOCO_OPENCODE_LIVE_TEST=1 for real model calls")
