@@ -90,9 +90,9 @@ go run ./cmd/bot
 
 Dockerfile에 Go 실행 파일, 빌드 시점의 **공식 최신 OpenCode v2**, Git, `dicoco` 소스가 포함되어 있다.
 이미지 안의 소스는 root 소유이고 실행 사용자는 **UID 10001**이므로 에이전트가 원본 소스를 수정할 수 없다.
-배포 워크플로는 빌드마다 `OPENCODE_INSTALL_REVISION` 값을 바꿔 설치 레이어의 캐시를 무효화한다. 따라서 매 배포 빌드에서 공식 최신 버전을 다시 확인한다.
+배포 워크플로는 빌드마다 공식 최신 버전 API를 조회하고 `OPENCODE_VERSION` 빌드 인자로 전달한다. 최신 버전이 그대로라면 설치 레이어를 재사용하고, 새 버전이면 새 바이너리를 설치한다.
 컨테이너 실행 중 자동 업데이트는 하지 않으며 다음 이미지 빌드·배포 때 최신 버전이 적용된다.
-수동 로컬 이미지 빌드에서 최신 버전을 다시 받고 싶으면 `--no-cache` 또는 새로운 `--build-arg OPENCODE_INSTALL_REVISION=임의의새값`을 지정한다.
+수동 로컬 이미지 빌드에서 최신 버전을 다시 받고 싶으면 `--no-cache-filter opencode`를 지정하거나, 최신 버전을 확인해 `--build-arg OPENCODE_VERSION=버전`을 지정한다.
 Go API 연동은 OpenCode 2.1.4에서 실측 검증했고, 최신 버전의 API 변경에 따라 재검증이 필요할 수 있다.
 
 기존 배포에 필요한 변경:
@@ -213,6 +213,12 @@ go build -o /tmp/dicoco ./cmd/bot
 ```
 
 일반 테스트는 모델을 호출하지 않는다. 로컬 HTTP 가짜 서버와 가짜 Discord/에이전트로 요청 형식·멘션 필터·기존 스레드 호출·DM 세션 분리·순차 처리·중복·타임아웃을 검증한다.
+
+일반 테스트는 러너에 미리 설치된 `gh`에 의존하지 않는다. 실제 CLI가 생성한 인증 파일과 갱신 토큰을 읽는 호환성 검사는 필요할 때 별도로 실행한다(실제 GitHub 요청 없음):
+
+```sh
+DICOCO_GH_CLI_TEST=1 go test ./internal/githubauth -run TestGHConfigCLI -v -count=1
+```
 
 실제 OpenCode 연동을 직접 다시 검증하고 싶을 때만:
 

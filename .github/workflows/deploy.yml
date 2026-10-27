@@ -10,7 +10,7 @@ permissions:
 jobs:
   test:
     name: Format, Vet, Test, Build
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
 
     steps:
       - name: Checkout
@@ -20,7 +20,8 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: '1.27.1'
-          cache: false
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: Check formatting
         shell: bash
@@ -44,7 +45,7 @@ jobs:
   build-and-push:
     name: Build and push image
     needs: test
-    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
 
     env:
       IMAGE_URI: ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_IMAGE }}
@@ -61,6 +62,14 @@ jobs:
           username: ${{ vars.OCIR_USERNAME }}
           password: ${{ secrets.OCI_AUTH_TOKEN }}
 
+      - name: Resolve latest OpenCode
+        id: opencode
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            https://opencode.ai/update/api/latest/cli/npm |
+            python3 -c 'import json,re,sys; v=json.load(sys.stdin)["version"]; re.fullmatch(r"2\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?",v) or sys.exit("Invalid OpenCode v2 version"); print("version="+v)' >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -71,7 +80,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/arm64
           build-args: |
-            OPENCODE_INSTALL_REVISION=${{ github.run_id }}-${{ github.run_attempt }}
+            OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
           push: true
           tags: |
             ${{ env.IMAGE_URI }}:${{ env.IMAGE_TAG }}

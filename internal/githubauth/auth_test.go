@@ -118,24 +118,44 @@ func TestAppInstallationAndGHConfig(t *testing.T) {
 	if info.Mode().Perm() != 0600 {
 		t.Fatal("gh token file must be owner-readable only")
 	}
+	data, err := os.ReadFile(file)
+	if err != nil || !strings.Contains(string(data), "ghs_test_only_token") {
+		t.Fatal("issued token was not written into isolated gh config")
+	}
+}
+
+// The runner's preinstalled gh version/configuration is not a unit-test
+// dependency. Run this compatibility check explicitly with the intended CLI.
+func TestGHConfigCLI(t *testing.T) {
+	if os.Getenv("DICOCO_GH_CLI_TEST") != "1" {
+		t.Skip("set DICOCO_GH_CLI_TEST=1 for installed gh compatibility check")
+	}
 	if _, err := exec.LookPath("gh"); err != nil {
-		t.Skip("gh not installed; config creation tested")
+		t.Fatal("gh is required for the requested CLI compatibility test")
 	}
-	cmd := exec.Command("gh", "auth", "token", "--hostname", "github.com")
-	cmd.Env = append(os.Environ(), "GH_CONFIG_DIR="+dir, "GH_TOKEN=", "GITHUB_TOKEN=", "GH_PROMPT_DISABLED=1")
-	output, err := cmd.Output()
-	if err != nil || strings.TrimSpace(string(output)) != "ghs_test_only_token" {
-		t.Fatal("gh did not read the generated auth config")
+	dir := t.TempDir()
+	if err := writeConfig(dir, "ghs_test_only_token"); err != nil {
+		t.Fatal(err)
 	}
+	checkToken := func(want string) {
+		t.Helper()
+		cmd := exec.Command("gh", "auth", "token", "--hostname", "github.com")
+		// Do not inherit GH_*, GITHUB_*, CI, or a user's gh config/keyring
+		// selection. This tests the generated file, independently of the runner.
+		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir, "GH_CONFIG_DIR=" + dir, "GH_PROMPT_DISABLED=1", "NO_COLOR=1"}
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("gh could not read isolated test config: %v; diagnostic=%s", err, strings.TrimSpace(string(output)))
+		}
+		if strings.TrimSpace(string(output)) != want {
+			t.Fatal("gh returned a different token from the isolated test config")
+		}
+	}
+	checkToken("ghs_test_only_token")
 	if err := writeConfig(dir, "ghs_rotated_test_token"); err != nil {
 		t.Fatal(err)
 	}
-	cmd = exec.Command("gh", "auth", "token", "--hostname", "github.com")
-	cmd.Env = append(os.Environ(), "GH_CONFIG_DIR="+dir, "GH_TOKEN=", "GITHUB_TOKEN=")
-	output, err = cmd.Output()
-	if err != nil || strings.TrimSpace(string(output)) != "ghs_rotated_test_token" {
-		t.Fatal("gh did not pick up a refreshed token")
-	}
+	checkToken("ghs_rotated_test_token")
 }
 
 func TestAuthErrorDoesNotLogResponseBody(t *testing.T) {
