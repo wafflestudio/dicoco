@@ -70,6 +70,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/arm64
+          build-args: |
+            OPENCODE_INSTALL_REVISION=${{ github.run_id }}-${{ github.run_attempt }}
           push: true
           tags: |
             ${{ env.IMAGE_URI }}:${{ env.IMAGE_TAG }}
