@@ -3,6 +3,9 @@ name: Deploy
 on:
   push:
     branches: [ main ]
+  schedule:
+    # Monday 09:00 Asia/Seoul (UTC+9).
+    - cron: '0 0 * * 1'
 
 permissions:
     contents: read
@@ -61,6 +64,13 @@ jobs:
           registry: ${{ vars.OCIR_REGISTRY }}
           username: ${{ vars.OCIR_USERNAME }}
           password: ${{ secrets.OCI_AUTH_TOKEN }}
+
+      - name: Set weekly deployment tag
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          printf 'IMAGE_TAG=%s-weekly-%s-%s\n' \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Resolve latest OpenCode
         id: opencode

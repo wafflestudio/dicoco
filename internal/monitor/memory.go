@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	Interval  = 10 * time.Second
-	Threshold = uint64(800 * 1024 * 1024)
+	Interval       = 10 * time.Second
+	ReportInterval = time.Minute
+	Threshold      = uint64(800 * 1024 * 1024)
 )
 
 func Run(ctx context.Context) {
@@ -23,14 +24,15 @@ func Run(ctx context.Context) {
 		log.Printf("[memory] container monitoring unavailable: %v", err)
 		return
 	}
-	log.Printf("[memory] monitoring every 10s; warning at 800MiB; source=%s (includes page cache)", source)
+	log.Printf("[memory] sampling every 10s, reporting every 1m; warning at 800MiB; source=%s (includes page cache)", source)
 	ticker := time.NewTicker(Interval)
 	defer ticker.Stop()
+	var nextReport time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case now := <-ticker.C:
 			data, err := os.ReadFile(path)
 			if err != nil {
 				log.Printf("[memory] read usage: %v", err)
@@ -43,6 +45,11 @@ func Run(ctx context.Context) {
 			}
 			if usage >= Threshold {
 				log.Printf("[memory] HIGH container_memory=%.1fMiB threshold=800MiB source=%s", float64(usage)/(1024*1024), source)
+			} else if !now.Before(nextReport) {
+				log.Printf("[memory] container_memory=%.1fMiB source=%s", float64(usage)/(1024*1024), source)
+			}
+			if !now.Before(nextReport) {
+				nextReport = now.Add(ReportInterval)
 			}
 		}
 	}
