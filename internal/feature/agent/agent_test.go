@@ -14,12 +14,13 @@ import (
 )
 
 type fakeDiscord struct {
-	mu       sync.Mutex
-	threads  int
-	sent     []string
-	channels map[string]*discordgo.Channel
-	history  []*discordgo.Message
-	root     *discordgo.Message
+	mu          sync.Mutex
+	threads     int
+	sent        []string
+	channels    map[string]*discordgo.Channel
+	history     []*discordgo.Message
+	root        *discordgo.Message
+	rootChannel string
 }
 
 func (d *fakeDiscord) Channel(id string, opts ...discordgo.RequestOption) (*discordgo.Channel, error) {
@@ -32,6 +33,7 @@ func (d *fakeDiscord) ChannelMessages(id string, limit int, before, after, aroun
 	return d.history, nil
 }
 func (d *fakeDiscord) ChannelMessage(channel, id string, opts ...discordgo.RequestOption) (*discordgo.Message, error) {
+	d.rootChannel = channel
 	return d.root, nil
 }
 
@@ -52,6 +54,10 @@ func (d *fakeDiscord) ChannelMessageSendComplex(channel string, m *discordgo.Mes
 }
 
 func (d *fakeDiscord) MessageReactionAdd(channel, message, emoji string, opts ...discordgo.RequestOption) error {
+	return nil
+}
+
+func (d *fakeDiscord) ChannelTyping(channel string, opts ...discordgo.RequestOption) error {
 	return nil
 }
 
@@ -98,7 +104,7 @@ func testHandler(t *testing.T) (*Handler, *fakeDiscord, *fakeEngine) {
 	t.Helper()
 	e := &fakeEngine{}
 	d := &fakeDiscord{}
-	h := New("channel", e)
+	h := New(e)
 	h.discord = d
 	return h, d, e
 }
@@ -146,12 +152,10 @@ func awaitStatus(t *testing.T, h *Handler, id, status string) {
 func TestMentionsRoutingAndDedup(t *testing.T) {
 	h, d, _ := testHandler(t)
 	h.handle(d, "bot", nil)
-	h.handle(d, "bot", event("1", "other", "guild", "<@bot> ignored", true))
 	h.handle(d, "bot", event("2", "channel", "guild", "ordinary chat", false))
 	m := event("3", "channel", "guild", "<@bot> bot message", true)
 	m.Author.Bot = true
 	h.handle(d, "bot", m)
-	h.handle(d, "bot", event("4", "untracked-thread", "guild", "<@bot> ignored", true))
 	request := event("5", "channel", "guild", "<@bot> explain code", true)
 	h.handle(d, "bot", request)
 	h.handle(d, "bot", request)
@@ -165,14 +169,14 @@ func TestMentionsRoutingAndDedup(t *testing.T) {
 	}
 }
 
-func TestDMWithoutGuildChannelConfigured(t *testing.T) {
+func TestDMAndAnyGuildChannel(t *testing.T) {
 	_, d, e := testHandler(t)
-	h := New("", e)
+	h := New(e)
 	h.discord = d
-	h.handle(d, "bot", event("guild", "channel", "guild", "<@bot> ignored without admin", true))
+	h.handle(d, "bot", event("guild", "channel", "guild", "<@bot> request in any channel", true))
 	h.handle(d, "bot", event("dm", "dm-channel", "", "question without mention", false))
-	if len(h.state.Requests) != 1 || h.state.Requests[0].ID != "dm" {
-		t.Fatal("DM must work without an admin channel; guild messages must stay disabled")
+	if len(h.state.Requests) != 2 || h.state.Requests[1].ID != "dm" {
+		t.Fatal("guild mentions and unmentioned DMs must both work without an admin channel")
 	}
 	runWorker(t, h)
 	awaitStatus(t, h, "dm", "completed")
@@ -185,7 +189,7 @@ func TestSequentialFollowupsAndDMSessions(t *testing.T) {
 	h.handle(d, "bot", event("first", "channel", "guild", "<@bot> question", true))
 	h.handle(d, "bot", event("followup", "thread-first", "guild", "<@bot> follow up", true))
 	h.handle(d, "bot", event("dm", "dm-channel", "", "private question", false))
-	h.handle(d, "bot", event("other", "channel", "guild", "<@bot> separate thread", true))
+	h.handle(d, "bot", event("other", "another-channel", "guild", "<@bot> separate thread", true))
 	runWorker(t, h)
 	for _, id := range []string{"first", "followup", "dm", "other"} {
 		select {
@@ -220,8 +224,8 @@ func TestSequentialFollowupsAndDMSessions(t *testing.T) {
 func TestMentionInExistingThreadAndFreshStart(t *testing.T) {
 	h, d, e := testHandler(t)
 	d.channels = map[string]*discordgo.Channel{
-		"existing": {ID: "existing", Type: discordgo.ChannelTypeGuildPublicThread, ParentID: "channel", GuildID: "guild"},
-		"foreign":  {ID: "foreign", Type: discordgo.ChannelTypeGuildPublicThread, ParentID: "other", GuildID: "guild"},
+		"existing": {ID: "existing", Type: discordgo.ChannelTypeGuildPublicThread, ParentID: "other", GuildID: "guild"},
+		"foreign":  {ID: "foreign", Type: discordgo.ChannelTypeGuildPublicThread, ParentID: "other", GuildID: "different-guild"},
 	}
 	d.history = []*discordgo.Message{{Content: "prior detail", Author: &discordgo.User{ID: "teammate", Username: "민수"}}}
 	d.root = &discordgo.Message{ID: "existing", Content: "original PR link", Author: &discordgo.User{ID: "rootauthor"}}
@@ -229,14 +233,17 @@ func TestMentionInExistingThreadAndFreshStart(t *testing.T) {
 	h.handle(d, "bot", event("initial", "existing", "guild", "<@bot> investigate", true))
 	h.handle(d, "bot", event("followup", "existing", "guild", "<@bot> check tests too", true))
 	if len(h.state.Requests) != 2 || d.threads != 0 {
-		t.Fatal("existing thread should be reused only under configured parent")
+		t.Fatal("existing thread under any parent should be reused; mismatched guild must be rejected")
+	}
+	if d.rootChannel != "other" {
+		t.Fatal("thread root must be fetched from its actual parent channel")
 	}
 	if !strings.Contains(h.state.Requests[0].Context, "prior detail") || !strings.Contains(h.state.Requests[0].Context, "original PR link") || h.state.Requests[1].Context != "" {
 		t.Fatal("expected history only on initial thread activation")
 	}
 	runWorker(t, h)
 	awaitStatus(t, h, "followup", "completed")
-	fresh := New("channel", e)
+	fresh := New(e)
 	if len(fresh.state.Threads) != 0 || len(fresh.state.Requests) != 0 {
 		t.Fatal("restart must start fresh without disk persistence")
 	}

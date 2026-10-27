@@ -43,9 +43,6 @@ func Run() error {
 	// Feature registration starts here.
 	var agentHandler *agent.Handler
 	if cfg.AgentEnabled {
-		if cfg.AgentChannelID == "" {
-			log.Print("[agent] admin_2026_channel_id missing; DM enabled, guild requests disabled")
-		}
 		var engineEnvironment []string
 		if cfg.GitHubAppID != "" {
 			if cfg.OpenCodeURL != "" {
@@ -82,7 +79,7 @@ func Run() error {
 		if err != nil {
 			return err
 		}
-		agentHandler = agent.New(cfg.AgentChannelID, engine)
+		agentHandler = agent.New(engine)
 		discordClient.Register(agentHandler)
 	}
 	var scratchHandler *scratch.Handler

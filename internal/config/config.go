@@ -13,7 +13,6 @@ const DefaultDiscordTokenFile = "/var/run/secrets/discord-bot/token"
 type Config struct {
 	DiscordToken         string
 	DiscordTokenFile     string
-	AgentChannelID       string
 	AgentEnabled         bool
 	AgentOnly            bool
 	OpenCodeURL          string
@@ -59,14 +58,6 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("AGENT_ONLY requires AGENT_ENABLED")
 	}
 	if cfg.AgentEnabled {
-		// Reuse the same admin-channel Secret as the bot's existing features.
-		// A missing channel only disables guild requests, not DM conversations.
-		adminFile := filepath.Join(filepath.Dir(tokenFile), "admin_2026_channel_id")
-		admin, adminErr := os.ReadFile(adminFile)
-		if adminErr != nil && !os.IsNotExist(adminErr) {
-			return Config{}, fmt.Errorf("read admin channel: %w", adminErr)
-		}
-		cfg.AgentChannelID = strings.TrimSpace(string(admin))
 		idFile := os.Getenv("GITHUB_APP_ID_FILE")
 		if idFile == "" {
 			idFile = "/var/run/secrets/discord-bot/github_app_id"

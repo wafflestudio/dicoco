@@ -24,6 +24,7 @@ type discordAPI interface {
 	ChannelMessages(string, int, string, string, string, ...discordgo.RequestOption) ([]*discordgo.Message, error)
 	MessageThreadStart(string, string, string, int, ...discordgo.RequestOption) (*discordgo.Channel, error)
 	MessageReactionAdd(string, string, string, ...discordgo.RequestOption) error
+	ChannelTyping(string, ...discordgo.RequestOption) error
 	ChannelMessageSendComplex(string, *discordgo.MessageSend, ...discordgo.RequestOption) (*discordgo.Message, error)
 }
 
@@ -50,7 +51,6 @@ type state struct {
 
 type Handler struct {
 	mu          sync.Mutex
-	channelID   string
 	engine      Engine
 	discord     discordAPI
 	state       state
@@ -59,8 +59,8 @@ type Handler struct {
 	unavailable bool
 }
 
-func New(channelID string, engine Engine) *Handler {
-	h := &Handler{channelID: channelID, engine: engine, wake: make(chan struct{}, 1), timeout: 10 * time.Minute}
+func New(engine Engine) *Handler {
+	h := &Handler{engine: engine, wake: make(chan struct{}, 1), timeout: 10 * time.Minute}
 	h.state.Threads = make(map[string]Conversation)
 	return h
 }
@@ -84,6 +84,7 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 	conversation, followup := h.state.Threads[m.ChannelID]
 	isDM := m.GuildID == ""
 	isThread := followup && !isDM
+	var parentID string
 	if !isDM {
 		mentioned := false
 		for _, user := range m.Mentions {
@@ -101,19 +102,18 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 			return
 		}
 	} else if !isDM {
-		if m.ChannelID != h.channelID {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			channel, err := s.Channel(m.ChannelID, discordgo.WithContext(ctx))
-			cancel()
-			if err != nil {
-				log.Printf("[agent] inspect channel for request %s: %v", m.ID, err)
-				return
-			}
-			if !channel.IsThread() || channel.ParentID != h.channelID || channel.GuildID != m.GuildID {
-				return
-			}
-			isThread = true
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		channel, err := s.Channel(m.ChannelID, discordgo.WithContext(ctx))
+		cancel()
+		if err != nil {
+			log.Printf("[agent] inspect channel for request %s: %v", m.ID, err)
+			return
 		}
+		if channel.GuildID != m.GuildID {
+			return
+		}
+		isThread = channel.IsThread()
+		parentID = channel.ParentID
 	}
 	for _, r := range h.state.Requests {
 		if r.ID == m.ID {
@@ -153,7 +153,7 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 		// Message-created threads share their ID with the parent message. That
 		// original post may contain the PR link and is not always in thread history.
 		if !followup {
-			root, rootErr := s.ChannelMessage(h.channelID, m.ChannelID, discordgo.WithContext(ctx))
+			root, rootErr := s.ChannelMessage(parentID, m.ChannelID, discordgo.WithContext(ctx))
 			if rootErr == nil && root != nil && root.Content != "" {
 				found := false
 				for _, prior := range messages {
@@ -247,6 +247,8 @@ func (h *Handler) next() (Request, bool) {
 func (h *Handler) process(ctx context.Context, s discordAPI, r Request) bool {
 	workCtx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
+	stopTyping := startTyping(workCtx, s, r.ThreadID)
+	defer stopTyping()
 	h.mu.Lock()
 	conversation := h.state.Threads[r.ThreadID]
 	h.mu.Unlock()
@@ -268,6 +270,7 @@ func (h *Handler) process(ctx context.Context, s discordAPI, r Request) bool {
 		author, _ := json.Marshal(map[string]string{"id": r.AuthorID, "name": r.AuthorName})
 		answer, err = h.engine.Ask(workCtx, sessionID, r.ID, r.Context+"현재 요청의 Discord 작성자: "+string(author)+"\n\n"+r.Text)
 	}
+	stopTyping()
 	if err != nil {
 		log.Printf("[agent] request %s failed: %v", r.ID, err)
 		// A disconnected HTTP client does not stop server-side execution.
@@ -292,6 +295,41 @@ func (h *Handler) process(ctx context.Context, s discordAPI, r Request) bool {
 	}
 	h.setStatus(r.ID, "completed")
 	return true
+}
+
+// Discord typing expires, so refresh it while the engine is working. Stop and
+// join before sending a reply so a late refresh cannot appear after the answer.
+func startTyping(ctx context.Context, s discordAPI, channelID string) func() {
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(7 * time.Second)
+		defer ticker.Stop()
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			requestCtx, stop := context.WithTimeout(ctx, 5*time.Second)
+			err := s.ChannelTyping(channelID, discordgo.WithContext(requestCtx))
+			stop()
+			if err != nil {
+				if ctx.Err() == nil {
+					log.Printf("[agent] typing indicator in channel %s: %v", channelID, err)
+				}
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 // Discord snowflakes are unsigned decimal strings. Compare without float loss.

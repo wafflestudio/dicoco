@@ -52,15 +52,15 @@ func TestAgentConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.OpenCodeBinary != "opencode" || cfg.OpenCodeURL != "" || cfg.OpenCodeDirectory != dir || !cfg.AgentOnly || !cfg.AgentEnabled || cfg.AgentChannelID != "123" {
+	if cfg.OpenCodeBinary != "opencode" || cfg.OpenCodeURL != "" || cfg.OpenCodeDirectory != dir || !cfg.AgentOnly || !cfg.AgentEnabled {
 		t.Fatalf("unexpected config %+v", cfg)
 	}
 	if err := os.Remove(adminFile); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err = Load()
-	if err != nil || !cfg.AgentEnabled || cfg.AgentChannelID != "" || cfg.OpenCodeBinary != "opencode" {
-		t.Fatal("missing admin channel must leave DM agent enabled")
+	if err != nil || !cfg.AgentEnabled || cfg.OpenCodeBinary != "opencode" {
+		t.Fatal("agent must stay enabled without an admin channel")
 	}
 	t.Setenv("AGENT_ENABLED", "false")
 	if _, err := Load(); err == nil {
