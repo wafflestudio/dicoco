@@ -161,6 +161,19 @@ func TestMentionsRoutingAndDedup(t *testing.T) {
 	}
 }
 
+func TestDMWithoutGuildChannelConfigured(t *testing.T) {
+	_, d, e := testHandler(t)
+	h := New("", e)
+	h.discord = d
+	h.handle(d, "bot", event("guild", "channel", "guild", "<@bot> ignored without admin", true))
+	h.handle(d, "bot", event("dm", "dm-channel", "", "question without mention", false))
+	if len(h.state.Requests) != 1 || h.state.Requests[0].ID != "dm" {
+		t.Fatal("DM must work without an admin channel; guild messages must stay disabled")
+	}
+	runWorker(t, h)
+	awaitStatus(t, h, "dm", "completed")
+}
+
 func TestSequentialFollowupsAndDMSessions(t *testing.T) {
 	h, d, e := testHandler(t)
 	e.started = make(chan string, 4)

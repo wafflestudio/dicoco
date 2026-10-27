@@ -7,7 +7,7 @@ import (
 )
 
 func TestLoadDiscordToken(t *testing.T) {
-	t.Setenv("AGENT_CHANNEL_ID", "")
+	t.Setenv("AGENT_ENABLED", "false")
 	t.Setenv("AGENT_ONLY", "")
 	tokenFile := filepath.Join(t.TempDir(), "token")
 	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
@@ -36,7 +36,11 @@ func TestAgentConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("DISCORD_TOKEN_FILE", tokenFile)
-	t.Setenv("AGENT_CHANNEL_ID", "123")
+	t.Setenv("AGENT_ENABLED", "")
+	adminFile := filepath.Join(dir, "admin_2026_channel_id")
+	if err := os.WriteFile(adminFile, []byte("123\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("AGENT_ONLY", "true")
 	t.Setenv("OPENCODE_URL", "")
 	t.Setenv("OPENCODE_BINARY", "")
@@ -48,12 +52,24 @@ func TestAgentConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.OpenCodeBinary != "opencode" || cfg.OpenCodeURL != "" || cfg.OpenCodeDirectory != dir || !cfg.AgentOnly {
+	if cfg.OpenCodeBinary != "opencode" || cfg.OpenCodeURL != "" || cfg.OpenCodeDirectory != dir || !cfg.AgentOnly || !cfg.AgentEnabled || cfg.AgentChannelID != "123" {
 		t.Fatalf("unexpected config %+v", cfg)
 	}
-	t.Setenv("AGENT_CHANNEL_ID", "")
+	if err := os.Remove(adminFile); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil || !cfg.AgentEnabled || cfg.AgentChannelID != "" || cfg.OpenCodeBinary != "opencode" {
+		t.Fatal("missing admin channel must leave DM agent enabled")
+	}
+	t.Setenv("AGENT_ENABLED", "false")
 	if _, err := Load(); err == nil {
-		t.Fatal("agent-only without channel should fail")
+		t.Fatal("agent-only and explicitly disabled should fail")
+	}
+	t.Setenv("AGENT_ONLY", "false")
+	cfg, err = Load()
+	if err != nil || cfg.AgentEnabled {
+		t.Fatal("explicit opt-out should disable agent")
 	}
 }
 
@@ -68,7 +84,7 @@ func TestGitHubAppSecretFiles(t *testing.T) {
 		}
 	}
 	t.Setenv("DISCORD_TOKEN_FILE", token)
-	t.Setenv("AGENT_CHANNEL_ID", "123")
+	t.Setenv("AGENT_ENABLED", "true")
 	t.Setenv("AGENT_ONLY", "")
 	t.Setenv("OPENCODE_URL", "")
 	t.Setenv("OPENCODE_DIRECTORY", dir)
