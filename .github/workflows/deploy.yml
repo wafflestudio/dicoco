@@ -101,6 +101,57 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Generate GitOps diagnostic token
+        id: gitops-check-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: 'Iv23lijiSk5hqJhw5DsY'
+          private-key: ${{ secrets.DEPLOYER_APP_PRIVATE_KEY }}
+          owner: wafflestudio
+          repositories: waffle-world-oci
+          permission-contents: write
+
+      - name: Check GitOps push access
+        env:
+          GITOPS_CHECK_TOKEN: ${{ steps.gitops-check-token.outputs.token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          import urllib.error
+          import urllib.request
+
+          token = os.environ["GITOPS_CHECK_TOKEN"]
+          basic = base64.b64encode(("x-access-token:" + token).encode()).decode()
+          checks = [
+              ("Repository API", "https://api.github.com/repos/wafflestudio/waffle-world-oci", "Bearer " + token),
+              ("Git push authentication", "https://github.com/wafflestudio/waffle-world-oci.git/info/refs?service=git-receive-pack", "Basic " + basic),
+          ]
+          failed = False
+          for label, url, authorization in checks:
+              request = urllib.request.Request(url, headers={
+                  "Authorization": authorization,
+                  "User-Agent": "dicoco-deploy-check",
+              })
+              try:
+                  response = urllib.request.urlopen(request, timeout=30)
+              except urllib.error.HTTPError as error:
+                  response = error
+              except urllib.error.URLError:
+                  print(f"::error::{label}: connection failed", flush=True)
+                  failed = True
+                  continue
+              with response:
+                  status = response.code
+                  request_id = response.headers.get("X-GitHub-Request-Id", "unavailable")
+                  print(f"{label}: HTTP {status}; GitHub request ID: {request_id}", flush=True)
+                  if status != 200:
+                      failed = True
+          if failed:
+              raise SystemExit("GitOps access check failed; no repository changes were made by this check.")
+          PY
+
       - name: Update GitOps image tag
         uses: wafflestudio/waffle-world-oci/.github/actions/update-image@main
         with:
