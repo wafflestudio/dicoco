@@ -23,6 +23,7 @@ type discordAPI interface {
 	ChannelMessage(string, string, ...discordgo.RequestOption) (*discordgo.Message, error)
 	ChannelMessages(string, int, string, string, string, ...discordgo.RequestOption) ([]*discordgo.Message, error)
 	MessageThreadStart(string, string, string, int, ...discordgo.RequestOption) (*discordgo.Channel, error)
+	MessageReactionAdd(string, string, string, ...discordgo.RequestOption) error
 	ChannelMessageSendComplex(string, *discordgo.MessageSend, ...discordgo.RequestOption) (*discordgo.Message, error)
 }
 
@@ -196,6 +197,11 @@ func (h *Handler) handle(s discordAPI, botID string, m *discordgo.MessageCreate)
 	conversation.ContextMessageID = m.ID
 	h.state.Threads[threadID] = conversation
 	h.state.Requests = append(h.state.Requests, Request{ID: m.ID, ThreadID: threadID, AuthorID: m.Author.ID, AuthorName: m.Author.Username, Text: text, Context: priorContext, Status: "queued"})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := s.MessageReactionAdd(m.ChannelID, m.ID, "✅", discordgo.WithContext(ctx)); err != nil {
+		log.Printf("[agent] acknowledge request %s: %v", m.ID, err)
+	}
+	cancel()
 	select {
 	case h.wake <- struct{}{}:
 	default:

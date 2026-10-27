@@ -82,35 +82,56 @@ type rule struct {
 	Effect   string `json:"effect"`
 }
 
-// The agent uses the installed gh CLI directly. Other shell commands and code
-// changes remain outside this research bot's scope.
-func readOnlyRules() []rule {
+// GitHub API authorization belongs to the App token. Permit gh and common
+// inspection commands without granting arbitrary shell execution.
+func agentRules() []rule {
 	rules := []rule{{"*", "*", "deny"}}
 	for _, action := range []string{"read", "glob", "grep", "webfetch", "websearch"} {
 		rules = append(rules, rule{action, "*", "allow"})
 	}
 	for _, command := range []string{
-		"gh pr view *", "gh pr diff *", "gh pr list *", "gh pr checks *",
-		"gh repo view *", "gh repo list *", "gh search code *", "gh search prs *",
-		"gh api --method GET *", "gh api -X GET *",
-		"gh pr review * --comment *",
+		"gh *", "jq *", "sort *", "head *", "tail *", "cut *", "uniq *", "wc *",
+		"rg *", "grep *", "cat *", "ls *", "pwd *", "tr *", "paste *", "column *",
+		"echo *", "printf *", "basename *", "dirname *", "file *", "stat *", "du *",
+		"git status *", "git diff *", "git log *", "git show *", "git ls-files *", "git grep *",
 	} {
 		rules = append(rules, rule{"shell", command, "allow"})
 	}
-	for _, flag := range []string{"--approve", "--request-changes", "--body-file", " -a", " -r", " -F"} {
-		rules = append(rules, rule{"shell", "gh pr review *" + flag + "*", "deny"})
+	for _, command := range []string{
+		"gh auth *", "gh repo delete *", "gh repo archive *", "gh repo rename *", "gh repo edit *",
+		"gh repo deploy-key *", "gh secret *", "gh variable *", "gh pr merge *", "gh pr close *",
+		"gh repo create *", "gh repo fork *", "gh repo sync *", "gh repo set-default *",
+		"gh pr create *", "gh pr edit *", "gh pr reopen *", "gh pr ready *",
+		"gh workflow run *", "gh workflow enable *", "gh workflow disable *",
+		"gh run rerun *", "gh run cancel *", "gh run delete *", "gh release delete *",
+		"gh pr review *--approve*", "gh pr review *--request-changes*",
+		"gh pr review * -a*", "gh pr review * -r*",
+		"gh api *mutation*", "gh api *--input*", "gh api *@*",
+		"gh api * -f *", "gh api * -F *", "gh api * --raw-field*", "gh api * --field*",
+		"sort *--output*", "sort * -o*", "git diff *--output*",
+	} {
+		rules = append(rules, rule{"shell", command, "deny"})
+	}
+	// Fields implicitly switch gh api to POST. Explicit GET and GraphQL queries
+	// may use fields, but method overrides and mutations remain denied below.
+	for _, command := range []string{"gh api --method GET *", "gh api --method=GET *", "gh api -X GET *", "gh api -XGET *", "gh api graphql *"} {
+		rules = append(rules, rule{"shell", command, "allow"})
 	}
 	for _, method := range []string{"POST", "PUT", "PATCH", "DELETE", "post", "put", "patch", "delete"} {
 		for _, flag := range []string{"--method ", "--method=", "-X ", "-X"} {
 			rules = append(rules, rule{"shell", "gh api *" + flag + method + "*", "deny"})
 		}
 	}
-	// Inline review comments have no gh pr review flag. Permit only their POST
-	// endpoint, with a fixed method before the path and no later overrides/input.
 	inlineComment := "gh api --method POST repos/wafflestudio/*/pulls/*/comments *"
 	rules = append(rules, rule{"shell", inlineComment, "allow"})
 	for _, flag := range []string{"--method", "-X", "--input", "--hostname"} {
 		rules = append(rules, rule{"shell", inlineComment + flag + "*", "deny"})
+	}
+	for _, command := range []string{"gh api *mutation*", "gh api *--input*", "gh api *@*"} {
+		rules = append(rules, rule{"shell", command, "deny"})
+	}
+	for _, pattern := range []string{"*.pem*", "*.key*", "*.env*", "*/var/run/secrets/*", "*/.secrets/*", "*/.config/gh/*", "*/proc/*"} {
+		rules = append(rules, rule{"shell", pattern, "deny"})
 	}
 	for _, pattern := range []string{"*.env", "*.env.*", "*.pem", "*.key", ".secrets/*", "*/.secrets/*", ".git/*", "*/.git/*"} {
 		rules = append(rules, rule{"read", pattern, "deny"})
@@ -122,11 +143,11 @@ const instructions = `You are a shared Discord research assistant for a student 
 
 GitHub organization: wafflestudio. The normal gh CLI is installed and already authenticated when App credentials are mounted. Never ask for, read, or display tokens, private keys, gh authentication files, or environment credentials. Do not call gh auth. Do not run code, modify files, commit, open PRs, merge, approve, request changes, or deploy.
 
-Use gh directly for repository and PR access. Examples: gh pr view https://github.com/wafflestudio/REPO/pull/NUMBER --json number,title,body,state,headRefOid,baseRefOid,files; gh pr diff URL; gh repo view wafflestudio/REPO; gh api --method GET repos/wafflestudio/REPO/contents/PATH?ref=COMMIT. For source content request the raw media type with -H 'Accept: application/vnd.github.raw+json'. Read-only API requests must use explicit --method GET. The only permitted POST is an explicitly requested inline PR review comment, described below; all other API mutations and GraphQL are unavailable. Read related source, callers, configuration and tests using these tools. If a target repository or PR is unclear, ask in your answer. Report missing access and failed commands instead of claiming to have reviewed unseen material. Try the permitted command before claiming gh or shell is unavailable; only report a permission denial when an actual tool result says so.
+Use gh directly for repository and PR access. Examples: gh pr view https://github.com/wafflestudio/REPO/pull/NUMBER --json number,title,body,state,headRefOid,baseRefOid,files; gh pr diff URL; gh repo view wafflestudio/REPO; gh api --method GET repos/wafflestudio/REPO/contents/PATH?ref=COMMIT. For source content request the raw media type with -H 'Accept: application/vnd.github.raw+json'. Use gh help or --help to verify unfamiliar flags. gh inspection commands, GET REST calls and GraphQL queries are available subject to the GitHub App token permissions. Destructive commands, GraphQL mutations and API writes other than the inline review comment endpoint are blocked. Use gh pr review --comment for a whole-PR review. Common inspection and text-processing commands, including rg, grep, cat, ls, jq, sort, head, tail and read-only git commands, may be combined in pipelines. Do not change remote resources unless the current user explicitly requests the supported review or comment operation. Read related source, callers, configuration and tests using these tools. If a target repository or PR is unclear, ask in your answer. Report missing access and failed commands instead of claiming to have reviewed unseen material. Try the permitted command before claiming gh or shell is unavailable; only report a permission denial when an actual tool result says so.
 
 Only when the current user explicitly asks to publish a GitHub PR review, use gh pr review URL --comment --body 'review text'. A general code question or request to investigate a PR only requires a Discord answer. Re-check the PR state and headRefOid immediately before publishing; if it changed, do not post the old analysis as a current review. Mention the analyzed SHA in an analytical review. Focus on bugs introduced by the changes with file/line evidence, avoid style preferences and unsupported claims, and clearly state analysis limitations. Use COMMENT only, never approve or request changes. If publishing fails or times out, check gh api --method GET repos/wafflestudio/REPO/pulls/NUMBER/reviews for an existing matching review before retrying. Return the posted review link, or clearly say that it was not posted. There is no separate PR workflow: you perform these operations using gh as part of the requested task.
 
-For an explicit request to comment on a specific PR line, verify the current PR head, diff path and line, then use: gh api --method POST repos/wafflestudio/REPO/pulls/NUMBER/comments -f body='requested text' -f commit_id=HEAD_SHA -f path=FILE -F line=LINE -f side=RIGHT . Use LEFT for a line on the removed side. Keep the requested wording, including short comments such as 'lgtm!'; a comment is not an approval. If the file or line cannot be identified, ask instead of posting elsewhere. Do not add method overrides, --input, or --hostname. After an uncertain response, check the corresponding GET comments endpoint for an existing matching comment before retrying. Return the comment's html_url from the actual API response.`
+For an explicit request to comment on a specific PR line, verify the current PR head, diff path and line, then use: gh api --method POST repos/wafflestudio/REPO/pulls/NUMBER/comments -f body='requested text' -f commit_id=HEAD_SHA -f path=FILE -F line=LINE -f side=RIGHT . Use LEFT for a line on the removed side. Keep the requested wording, including short comments such as 'lgtm!'; a comment is not an approval. If the file or line cannot be identified, ask instead of posting elsewhere. After an uncertain response, check the corresponding GET comments endpoint for an existing matching comment before retrying. Return the comment's html_url from the actual API response.`
 
 func (c *Client) Create(ctx context.Context, title string) (string, error) {
 	var response struct {
@@ -134,7 +155,7 @@ func (c *Client) Create(ctx context.Context, title string) (string, error) {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	input := map[string]any{"title": title, "location": map[string]string{"directory": c.directory}, "permissions": readOnlyRules()}
+	input := map[string]any{"title": title, "location": map[string]string{"directory": c.directory}, "permissions": agentRules()}
 	if err := c.request(ctx, "POST", "/api/session", input, &response); err != nil {
 		return "", err
 	}

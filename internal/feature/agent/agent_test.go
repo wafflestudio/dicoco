@@ -51,6 +51,10 @@ func (d *fakeDiscord) ChannelMessageSendComplex(channel string, m *discordgo.Mes
 	return &discordgo.Message{}, nil
 }
 
+func (d *fakeDiscord) MessageReactionAdd(channel, message, emoji string, opts ...discordgo.RequestOption) error {
+	return nil
+}
+
 type fakeEngine struct {
 	mu                   sync.Mutex
 	created, interrupted int
