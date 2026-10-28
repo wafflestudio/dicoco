@@ -56,6 +56,10 @@ DM을 보낼 수 있는 사용자도 준비된 저장소를 조사할 수 있다
 
 공식 [모델 안내](https://dev.opencode.ai/v2/docs/models/)와 [HTTP API](https://dev.opencode.ai/v2/docs/api)의 `GET /api/model`, `GET /api/model/default`, `POST /api/session/{sessionID}/model`을 사용한다.
 
+## 기본 프롬프트
+
+[internal/opencode/agent.md](../internal/opencode/agent.md)에 디코코의 역할·말투·조사 및 리뷰 지침을 작성한다. 빌드 시 바이너리에 포함되고 새 OpenCode 세션을 만들 때 전달된다. 이 파일을 수정한 뒤 새 이미지를 빌드·배포하면 적용되며, 별도 Secret이나 파일 마운트는 필요 없다. 저장소 루트의 `AGENTS.md`는 개발용 가이드이고, 이 기본 프롬프트와는 별개다. 프롬프트를 수정해도 코드의 도구 권한 제한은 바뀌지 않는다.
+
 ## 환경변수 전체
 
 | 설정 | 기본값 | 설명 |
