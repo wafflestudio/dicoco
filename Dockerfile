@@ -17,6 +17,8 @@ RUN CGO_ENABLED=0 GOOS=linux \
     -o /server \
     ./cmd/bot
 
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /guard-gh ./cmd/gh
+
 FROM debian:bookworm-slim AS tools
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -48,6 +50,8 @@ RUN curl -fsSL https://opencode.ai/v2/install -o /tmp/install-opencode.sh \
     && cp /root/.opencode/bin/opencode /usr/local/bin/opencode
 
 FROM tools AS runtime
+RUN mkdir -p /usr/local/libexec && mv /usr/bin/gh /usr/local/libexec/dicoco-gh
+COPY --from=build /guard-gh /usr/bin/gh
 COPY --from=opencode /usr/local/bin/opencode /usr/local/bin/opencode
 COPY --from=build /server /server
 COPY --chown=root:root go.mod go.sum /workspace/dicoco/
