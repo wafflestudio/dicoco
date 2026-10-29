@@ -81,6 +81,14 @@ func Run() error {
 		if err != nil {
 			return err
 		}
+		if cfg.OpenCodeModel != "" {
+			modelCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			_, err = engine.SelectModel(modelCtx, cfg.OpenCodeModel)
+			cancel()
+			if err != nil {
+				return fmt.Errorf("select OPENCODE_MODEL %q: %w", cfg.OpenCodeModel, err)
+			}
+		}
 		agentHandler = agent.New(engine)
 		discordClient.Register(agentHandler)
 	}

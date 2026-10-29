@@ -52,7 +52,7 @@ DM을 보낼 수 있는 사용자도 준비된 저장소를 조사할 수 있다
 
 선택은 봇 전체에 적용한다. 진행 중인 요청은 기존 모델로 마치고, 다음에 처리하는 요청부터 기존 스레드·DM과 새 대화 모두 선택한 모델을 사용한다. 대화 내용은 유지한다. 모델 명령은 Go에서 직접 처리하므로 현재 모델이 한도에 걸려 있어도 사용할 수 있다. 서버 채널·스레드에서는 변경할 수 없다.
 
-선택값은 봇 메모리에 보관하므로 재시작·배포하면 OpenCode 기본값으로 돌아간다. 모델 변경 API가 실패하면 이전 모델로 조용히 실행하지 않고 오류로 처리한다. 무료 모델 간 한도가 독립적인지는 보장하지 않는다.
+선택값은 봇 메모리에 보관하므로 재시작·배포하면 `OPENCODE_MODEL`로 지정한 시작 모델로 돌아간다. 환경변수가 비어 있으면 OpenCode 기본값을 사용한다. 모델 변경 API가 실패하면 이전 모델로 조용히 실행하지 않고 오류로 처리한다. 무료 모델 간 한도가 독립적인지는 보장하지 않는다.
 
 공식 [모델 안내](https://dev.opencode.ai/v2/docs/models/)와 [HTTP API](https://dev.opencode.ai/v2/docs/api)의 `GET /api/model`, `GET /api/model/default`, `POST /api/session/{sessionID}/model`을 사용한다.
 
@@ -69,6 +69,7 @@ DM을 보낼 수 있는 사용자도 준비된 저장소를 조사할 수 있다
 | `AGENT_ONLY` | `false` | `true`면 에이전트만 등록한다. 로컬 테스트 시 기존 Notion·게임 등의 설정 없이 DM부터 실행하는 용도. |
 | `OPENCODE_DIRECTORY` | 로컬 현재 디렉터리, 이미지 `/workspace/dicoco` | **OpenCode가 실행되는 환경 기준** 조사 대상 디렉터리. 로컬에서는 절대 경로로 변환한다. 외부 서버를 사용할 때도 그 서버의 절대 경로를 넣는다. |
 | `OPENCODE_BINARY` | `opencode` | 봇이 실행할 OpenCode 2 실행 파일 경로. 이미지에는 빌드 시점의 공식 최신 v2가 설치된다. |
+| `OPENCODE_MODEL` | 로컬 없음, 이미지 `opencode/glm-5.3-flash-free` | 봇 시작 시 선택할 무료 모델의 전체 ID (`제공자ID/모델ID`). 비우면 OpenCode 기본값을 사용한다. 사용 가능한 무료·도구 호출 모델이 아니면 시작을 실패 처리한다. DM 모델 변경은 다음 재시작까지 이 값을 덮어쓴다. |
 | `OPENCODE_URL` | 없음 | 비우면 봇이 로컬 OpenCode를 시작한다. 이미 띄운 서버를 쓰려는 경우에만 URL을 지정한다. 이 경우 서버 시작·종료는 외부에서 관리한다. |
 | `OPENCODE_PASSWORD_FILE` | 없음 | 외부 서버의 비밀번호 파일. `OPENCODE_URL`과 함께 사용하며 Basic 인증의 사용자 이름은 `opencode`다. 봇이 시작하는 로컬 서버는 비밀번호를 자동으로 받으므로 설정하지 않는다. |
 | `GITHUB_APP_ID_FILE` | `/var/run/secrets/discord-bot/github_app_id` | 기존 OCI Vault/ExternalSecret에서 마운트하는 GitHub App ID 파일. 현재 App ID 값은 `5490993`. |
@@ -81,7 +82,7 @@ DM을 보낼 수 있는 사용자도 준비된 저장소를 조사할 수 있다
 `AGENT_ONLY=false`이면 기존 Notion 등 기능의 Secret 파일도 기존과 같이 필요하다.
 예전의 단순 멘션 ping과 DM 수신 확인 기능은 소스만 참고용으로 남기고 앱에 등록하지 않는다.
 
-모델 이름이나 모델 API 키는 봇의 필수 설정이 아니다. 세션 생성 때 모델을 지정하지 않아 **OpenCode가 선택하는 기본 모델**을 사용한다.
+모델 이름이나 모델 API 키는 봇의 필수 설정이 아니다. `OPENCODE_MODEL`을 비워두면 **OpenCode가 선택하는 기본 모델**을 사용한다. 시작 모델을 고정하려면 봇 실행 환경에 `OPENCODE_MODEL=제공자ID/모델ID`를 설정한다. ID는 DM의 `모델 목록`에서 확인한다. 배포에서도 유지하려면 배포 환경변수에 설정한다.
 로컬 OpenCode와 배포 컨테이너는 설정·데이터 디렉터리가 별개다. 로컬에서 바꾼 모델·로그인·설정이 배포 서버로 자동 복사되지는 않는다.
 기본 모델의 무료 제공·호출 제한은 OpenCode 제공자 정책을 따른다. 봇에 유료 모델 자동 전환이나 자동 충전 기능은 없다.
 

@@ -19,6 +19,7 @@ type Config struct {
 	OpenCodePassword     string
 	OpenCodeDirectory    string
 	OpenCodeBinary       string
+	OpenCodeModel        string
 	GitHubAppID          string
 	GitHubPrivateKeyFile string
 }
@@ -47,6 +48,7 @@ func Load() (Config, error) {
 		OpenCodeURL:       os.Getenv("OPENCODE_URL"),
 		OpenCodeDirectory: os.Getenv("OPENCODE_DIRECTORY"),
 		OpenCodeBinary:    os.Getenv("OPENCODE_BINARY"),
+		OpenCodeModel:     strings.TrimSpace(os.Getenv("OPENCODE_MODEL")),
 	}
 	if value := os.Getenv("AGENT_ENABLED"); value != "" {
 		cfg.AgentEnabled, err = strconv.ParseBool(value)

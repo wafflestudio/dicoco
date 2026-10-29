@@ -60,6 +60,7 @@ COPY --chown=root:root internal /workspace/dicoco/internal
 COPY --chown=root:root AGENTS.md README.md /workspace/dicoco/
 
 ENV OPENCODE_DIRECTORY=/workspace/dicoco \
+    OPENCODE_MODEL=opencode/glm-5.3-flash-free \
     XDG_DATA_HOME=/data/opencode/data \
     XDG_STATE_HOME=/data/opencode/state \
     XDG_CONFIG_HOME=/data/opencode/config \
