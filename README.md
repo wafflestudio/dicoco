@@ -27,6 +27,9 @@ internal/
         └── ping/           멘션을 통한 봇 응답 확인
 ```
 
+
+내가 만든 쿠키 너를 위해 구웠지~
+
 ## Structure (멘션 ping 예시)
 
 ```text
