@@ -53,6 +53,7 @@ jobs:
     env:
       IMAGE_URI: ${{ vars.OCIR_REGISTRY }}/${{ vars.OCIR_IMAGE }}
       IMAGE_TAG: ${{ github.sha }}
+      AGENT_VARIANT: disabled
 
     steps:
       - name: Checkout
@@ -73,6 +74,7 @@ jobs:
             "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
 
       - name: Resolve latest OpenCode
+        if: env.AGENT_VARIANT == 'enabled'
         id: opencode
         shell: bash
         run: |
@@ -90,7 +92,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/arm64
           build-args: |
-            OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
+            AGENT_VARIANT=${{ env.AGENT_VARIANT }}
+            OPENCODE_VERSION=${{ steps.opencode.outputs.version || 'latest' }}
           push: true
           tags: |
             ${{ env.IMAGE_URI }}:${{ env.IMAGE_TAG }}

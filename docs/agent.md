@@ -1,5 +1,9 @@
 # OpenCode 에이전트 운영 안내
 
+현재 에이전트는 비활성화되어 있다. 구현은 보관하지만 기본 이미지에는 OpenCode와 GitHub CLI를 설치하지 않고, 봇도 에이전트를 시작하지 않는다. 기존 `AGENT_ENABLED=true` 또는 `AGENT_ONLY=true` 설정이 있다면 제거한다.
+
+다시 사용할 때는 배포 워크플로의 `AGENT_VARIANT`를 `enabled`로 바꾸고 실행 환경에 `AGENT_ENABLED=true`를 명시한다. 로컬 이미지는 `docker build --build-arg AGENT_VARIANT=enabled .`로 만든다. 아래는 재활성화 후 사용하는 안내다.
+
 ## 실행 구조와 사용법
 
 ```text
@@ -65,7 +69,7 @@ DM을 보낼 수 있는 사용자도 준비된 저장소를 조사할 수 있다
 | 설정 | 기본값 | 설명 |
 |---|---|---|
 | `DISCORD_TOKEN_FILE` | `/var/run/secrets/discord-bot/token` | 기존 봇 토큰이 들어 있는 파일. **토큰 값이 아니라 파일 경로**를 지정한다. |
-| `AGENT_ENABLED` | `true` | 기본으로 OpenCode 에이전트를 실행한다. `false`로 명시하면 에이전트를 끈다. |
+| `AGENT_ENABLED` | `false` | `true`로 명시해야 OpenCode 에이전트를 실행한다. |
 | `AGENT_ONLY` | `false` | `true`면 에이전트만 등록한다. 로컬 테스트 시 기존 Notion·게임 등의 설정 없이 DM부터 실행하는 용도. |
 | `OPENCODE_DIRECTORY` | 로컬 현재 디렉터리, 이미지 `/workspace/dicoco` | **OpenCode가 실행되는 환경 기준** 조사 대상 디렉터리. 로컬에서는 절대 경로로 변환한다. 외부 서버를 사용할 때도 그 서버의 절대 경로를 넣는다. |
 | `OPENCODE_BINARY` | `opencode` | 봇이 실행할 OpenCode 2 실행 파일 경로. 이미지에는 빌드 시점의 공식 최신 v2가 설치된다. |
@@ -107,6 +111,7 @@ Discord Developer Portal의 Bot 설정에서 **Message Content Intent**를 켠�
 
 ```sh
 DISCORD_TOKEN_FILE=/절대/경로/봇토큰파일 \
+AGENT_ENABLED=true \
 AGENT_ONLY=true \
 OPENCODE_DIRECTORY="$PWD" \
 go run ./cmd/bot
@@ -130,7 +135,7 @@ Go API 연동은 OpenCode 2.1.4에서 실측 검증했고, 최신 버전의 API 
 
 기존 배포에 필요한 변경:
 
-1. 에이전트는 기본으로 활성화된다. 기존 기능도 사용할 경우 `AGENT_ONLY`는 설정하지 않는다. 에이전트의 채널 제한은 없으며 별도 채널 환경변수나 Secret이 필요 없다.
+1. 재활성화하려면 이미지 빌드에 `AGENT_VARIANT=enabled`, 실행 환경에 `AGENT_ENABLED=true`를 설정한다. 기존 기능도 사용할 경우 `AGENT_ONLY`는 설정하지 않는다. 에이전트의 채널 제한은 없으며 별도 채널 환경변수나 Secret이 필요 없다.
 2. 기존 Discord 토큰 Secret 마운트를 유지한다.
 3. **PVC는 만들지 않는다.** `/data`는 OpenCode가 실행 중 DB·캐시를 쓰는 컨테이너 내부 경로이며, 컨테이너 교체 때 사라져도 된다. 기본 이미지 설정대로라면 별도 마운트가 필요 없다. 배포에서 `readOnlyRootFilesystem: true`를 강제한다면 `/data`를 UID 10001이 쓸 수 있는 `emptyDir`로 제공한다.
 4. 컨테이너 메모리 제한을 현재 정한 `1Gi`로 둔다. 동시 분석은 한 건이지만 1Gi 안에서 항상 완료된다는 보장은 없으므로 경고와 OOMKilled 여부를 확인한다.

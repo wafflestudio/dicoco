@@ -7,7 +7,7 @@ import (
 )
 
 func TestLoadDiscordToken(t *testing.T) {
-	t.Setenv("AGENT_ENABLED", "false")
+	t.Setenv("AGENT_ENABLED", "")
 	t.Setenv("AGENT_ONLY", "")
 	tokenFile := filepath.Join(t.TempDir(), "token")
 	if err := os.WriteFile(tokenFile, []byte("test-token\n"), 0o600); err != nil {
@@ -21,6 +21,9 @@ func TestLoadDiscordToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if cfg.AgentEnabled {
+		t.Fatal("agent must be disabled by default")
+	}
 	if cfg.DiscordToken != "test-token" {
 		t.Fatalf("unexpected Discord token: %q", cfg.DiscordToken)
 	}
@@ -36,7 +39,7 @@ func TestAgentConfiguration(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("DISCORD_TOKEN_FILE", tokenFile)
-	t.Setenv("AGENT_ENABLED", "")
+	t.Setenv("AGENT_ENABLED", "true")
 	adminFile := filepath.Join(dir, "admin_2026_channel_id")
 	if err := os.WriteFile(adminFile, []byte("123\n"), 0600); err != nil {
 		t.Fatal(err)

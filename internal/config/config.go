@@ -43,7 +43,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		DiscordToken:      discordToken,
 		DiscordTokenFile:  tokenFile,
-		AgentEnabled:      true,
+		AgentEnabled:      false,
 		AgentOnly:         os.Getenv("AGENT_ONLY") == "true",
 		OpenCodeURL:       os.Getenv("OPENCODE_URL"),
 		OpenCodeDirectory: os.Getenv("OPENCODE_DIRECTORY"),

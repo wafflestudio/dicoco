@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# Use AGENT_VARIANT=enabled only when restoring the agent.
+ARG AGENT_VARIANT=disabled
 FROM golang:1.27.1-bookworm AS build
 
 WORKDIR /src
@@ -49,7 +51,7 @@ RUN curl -fsSL https://opencode.ai/v2/install -o /tmp/install-opencode.sh \
        fi \
     && cp /root/.opencode/bin/opencode /usr/local/bin/opencode
 
-FROM tools AS runtime
+FROM tools AS runtime-enabled
 RUN mkdir -p /usr/local/libexec && mv /usr/bin/gh /usr/local/libexec/dicoco-gh
 COPY --from=build /guard-gh /usr/bin/gh
 COPY --from=opencode /usr/local/bin/opencode /usr/local/bin/opencode
@@ -70,3 +72,17 @@ USER bot
 WORKDIR /workspace/dicoco
 
 ENTRYPOINT ["/server"]
+
+# The default image does not install OpenCode or its GitHub CLI tools.
+FROM debian:bookworm-slim AS runtime-disabled
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 10001 --create-home bot \
+    && mkdir -p /workspace/dicoco
+COPY --from=build /server /server
+ENV AGENT_ENABLED=false
+USER bot
+WORKDIR /workspace/dicoco
+ENTRYPOINT ["/server"]
+
+FROM runtime-${AGENT_VARIANT} AS runtime
