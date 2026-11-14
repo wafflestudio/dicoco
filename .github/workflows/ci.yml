@@ -40,4 +40,6 @@ jobs:
         run: go test ./...
 
       - name: Build
-        run: go build -trimpath -o /tmp/dicoco ./cmd/bot
+        run: |
+          go build -trimpath -o /tmp/dicoco ./cmd/bot
+          go build -trimpath -o /tmp/ops-reminder ./cmd/ops-reminder
