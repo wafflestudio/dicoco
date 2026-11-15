@@ -46,8 +46,8 @@ Notion·Discord·모델 조회 실패나 페이지네이션 한도 초과는 빈
 
 `waffle-world-oci/argocd/discord-bot`의 CronJob은 `10:00 Asia/Seoul`, `concurrencyPolicy: Forbid`로 설정한다. 첫 배포에서는 `suspend: true`로 두고 다음 순서로 활성화한다.
 
-1. OCI Vault에 `dicoco-ops-reminder` JSON 시크릿을 만들고 `notion_token`, `openrouter_key` 필드를 넣는다. 값은 Git에 기록하지 않는다. 기존 `discord-bot` 시크릿의 `token` 필드는 그대로 재사용한다.
-2. External Secrets가 Kubernetes `dicoco-ops-reminder` 시크릿을 동기화했고 두 키가 존재하는지 확인한다. 값 자체는 로그에 출력하지 않는다.
+1. OCI Vault의 기존 `discord-bot` JSON 시크릿에 `token`, `notion_token`, `openrouter_key` 필드가 있는지 확인한다. JSON 문법이 유효해야 하며 값은 Git에 기록하지 않는다.
+2. External Secrets가 Kubernetes `discord-bot` 시크릿을 `Ready=True`로 동기화했고 세 키가 존재하는지 확인한다. 값 자체는 로그에 출력하지 않는다.
 3. `dicoco` 이미지에 `/ops-reminder` 실행 파일이 포함되고 GitOps 이미지 태그가 갱신된 것을 확인한다.
 4. 읽기 전용 실행과 제한된 실제 동작을 확인한 뒤 CronJob의 `suspend`를 `false`로 바꾼다. 발송 전에 대상 Discord 채널과 멘션 대상도 확인한다.
 
