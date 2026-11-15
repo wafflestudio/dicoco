@@ -42,3 +42,7 @@ cmd/bot/main.go (main)
   -> Discord Gateway (WebSocket) : MESSAGE_CREATE 이벤트 발행
   -> internal/feature/reference/ping/ping.go (onMessageCreate -> mentionsUser) : 멘션 확인 후 답장 전송
 ```
+
+## 운영팀 TODO 리마인더
+
+`cmd/ops-reminder`는 Cron에서 한 번 실행하고 종료하는 명령입니다. 기본 `-mode daily`는 회의 날짜 탐색, 다음 회의록 TODO 작성, Discord 근거로 완료 상태 갱신, 회의·마감 전날 알림을 순서대로 실행합니다. `-mode notion-sync`는 다음 회의록 TODO 생성까지만 실행합니다. `-send`가 없으면 쓰기 없는 미리보기입니다. 운영 스케줄은 매일 10:00 KST를 예정하며 아직 배포되지 않았습니다. 판정·발송 기준은 [운영팀 TODO 일일 파이프라인](docs/ops-todo-reminder.md)에 정리되어 있습니다.

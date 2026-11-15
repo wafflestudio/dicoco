@@ -20,6 +20,7 @@ RUN CGO_ENABLED=0 GOOS=linux \
     ./cmd/bot
 
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /guard-gh ./cmd/gh
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /ops-reminder ./cmd/ops-reminder
 
 FROM debian:bookworm-slim AS tools
 
@@ -56,6 +57,7 @@ RUN mkdir -p /usr/local/libexec && mv /usr/bin/gh /usr/local/libexec/dicoco-gh
 COPY --from=build /guard-gh /usr/bin/gh
 COPY --from=opencode /usr/local/bin/opencode /usr/local/bin/opencode
 COPY --from=build /server /server
+COPY --from=build /ops-reminder /ops-reminder
 COPY --chown=root:root go.mod go.sum /workspace/dicoco/
 COPY --chown=root:root cmd /workspace/dicoco/cmd
 COPY --chown=root:root internal /workspace/dicoco/internal
@@ -80,6 +82,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && useradd --uid 10001 --create-home bot \
     && mkdir -p /workspace/dicoco
 COPY --from=build /server /server
+COPY --from=build /ops-reminder /ops-reminder
 ENV AGENT_ENABLED=false
 USER bot
 WORKDIR /workspace/dicoco
